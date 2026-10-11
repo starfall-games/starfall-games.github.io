@@ -1,0 +1,2788 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>STARFALL｜隕石よけブラウザゲーム</title>
+  <!-- 検索結果やSNSで表示される紹介文 -->
+  <meta name="description" content="STARFALL（スターフォール）は、降ってくる隕石や敵の攻撃をよけて20ステージを進む無料のブラウザゲーム。コインとジェムで宇宙船や背景をカスタマイズできるよ。スマホでもPCでも遊べる。">
+  <meta property="og:title" content="STARFALL｜隕石よけブラウザゲーム">
+  <meta property="og:description" content="降ってくる隕石や敵の攻撃をよけて、20ステージをクリアしよう！">
+  <meta property="og:type" content="website">
+  <!-- かっこいいフォント（タイトル用の Orbitron、ボタンや数字用の Chakra Petch、日本語用の Dela Gothic One） -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=Dela+Gothic+One&family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
+  <style>
+    body {
+      margin: 0;
+      background: #111827;
+      color: white;
+      font-family: sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    h1 { margin: 16px 0 8px; }
+    #info { margin-bottom: 8px; font-size: 18px; }
+    #coins { color: #facc15; font-weight: bold; }
+    #stage { color: #f472b6; font-weight: bold; }
+    #hearts { color: #f472b6; letter-spacing: 2px; }
+    #pause-button {
+      margin-left: 8px;
+      padding: 4px 10px;
+      border: none;
+      border-radius: 6px;
+      background: #374151;
+      color: white;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    #pause-button:disabled { opacity: 0.4; cursor: default; }
+    p { color: #9ca3af; }
+
+    #main { padding: 0 16px 32px; text-align: center; }
+    .notice {
+      position: fixed;
+      left: 50%;
+      bottom: 24px;
+      transform: translateX(-50%);
+      max-width: 90%;
+      background: #7f1d1d;
+      color: white;
+      padding: 10px 16px;
+      border-radius: 10px;
+      font-size: 14px;
+      z-index: 50;
+    }
+    .gem { color: #67e8f9; font-weight: bold; }
+
+    /* 英語のボタンや数字は、近未来っぽいフォントにする（日本語はふつうのフォントになる） */
+    #info, #pause-button, #shop-button, .big-btn, .sub-btn, .tabs button, .item button,
+    .shop-head h2, .shop-coins, .home-stats, .wallet, #shield-button, #slow-button {
+      font-family: 'Chakra Petch', sans-serif;
+    }
+    .big-btn { letter-spacing: 2px; }
+    .sub-btn, .tabs button, .item button, #pause-button { letter-spacing: 1px; }
+
+    /* ===== ゲーム画面の上にかぶせる画面（ホーム・アイテム・結果） ===== */
+    #stage-wrap { position: relative; display: inline-block; max-width: 100%; }
+    #stage-wrap canvas { display: block; }
+    .overlay {
+      position: absolute;
+      inset: 2px;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      background: rgba(5, 8, 20, 0.75);
+      border-radius: 8px;
+      padding: 20px;
+      box-sizing: border-box;
+      overflow-y: auto;
+    }
+    .overlay.show { display: flex; }
+    #bag { justify-content: flex-start; }  /* アイテムが多くても上が切れないように */
+    .home-title {
+      font-family: Orbitron, sans-serif;
+      font-weight: 900;
+      font-size: 50px;
+      letter-spacing: 4px;
+      color: #fef3c7;
+      text-shadow: 0 0 12px rgba(250, 204, 21, 0.9), 0 0 32px rgba(249, 115, 22, 0.6);
+      line-height: 1.1;
+    }
+    /* ページ上のロゴ */
+    h1.logo {
+      font-family: Orbitron, sans-serif;
+      font-weight: 900;
+      letter-spacing: 6px;
+      color: #fef3c7;
+      text-shadow: 0 0 10px rgba(250, 204, 21, 0.7);
+    }
+    .home-en { font-family: Orbitron, sans-serif; font-weight: 700; font-size: 12px; letter-spacing: 3px; color: #7dd3fc; }
+    .home-sub { font-family: 'Dela Gothic One', sans-serif; font-size: 22px; color: white; }
+    .home-stats { color: #cbd5e1; font-size: 15px; line-height: 1.8; }
+    .wallet { display: flex; gap: 10px; }
+    .wallet span { background: #1f2937; border-radius: 999px; padding: 6px 14px; font-weight: bold; }
+    .big-btn {
+      font-size: 22px;
+      font-weight: bold;
+      padding: 12px 44px;
+      border: none;
+      border-radius: 12px;
+      background: #facc15;
+      color: #111827;
+      cursor: pointer;
+      box-shadow: 0 4px 0 #a16207;
+    }
+    .big-btn:active { transform: translateY(2px); box-shadow: 0 2px 0 #a16207; }
+    .row { display: flex; gap: 10px; }
+    .sub-btn {
+      font-size: 15px;
+      font-weight: bold;
+      padding: 9px 16px;
+      border: none;
+      border-radius: 10px;
+      background: #374151;
+      color: white;
+      cursor: pointer;
+    }
+    .sub-btn:disabled { opacity: 0.4; cursor: default; }
+    .equipped { font-size: 13px; color: #fbcfe8; min-height: 18px; }
+    .boost-list { width: 100%; display: flex; flex-direction: column; gap: 8px; }
+    .boost {
+      background: #111827;
+      border: 2px solid transparent;
+      border-radius: 10px;
+      padding: 10px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-align: left;
+    }
+    .boost.on { border-color: #f472b6; }
+    .boost .icon { font-size: 30px; }
+    .boost .text { flex: 1; font-size: 12px; color: #cbd5e1; line-height: 1.5; }
+    .boost .text b { color: white; font-size: 15px; }
+    .result-title { font-family: Orbitron, sans-serif; font-weight: 900; font-size: 40px; color: #f87171; }
+    .taunt-en { font-family: Orbitron, sans-serif; font-weight: 900; font-size: 18px; color: white; text-shadow: 0 0 12px rgba(125, 211, 252, 0.9); }
+    .taunt-ja { font-family: 'Dela Gothic One', sans-serif; font-size: 14px; color: #cbd5e1; margin-top: -6px; }
+    .record { font-family: Orbitron, sans-serif; font-weight: 900; color: #facc15; font-size: 20px; }
+
+    /* ゲーム中の「無敵」ボタン */
+    #slow-button {
+      position: absolute;
+      right: 92px;
+      bottom: 12px;
+      display: none;
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      border: 3px solid white;
+      background: radial-gradient(circle at 35% 30%, #a5f3fc, #0891b2);
+      color: #083344;
+      font-weight: bold;
+      font-size: 13px;
+      line-height: 1.2;
+      cursor: pointer;
+      box-shadow: 0 0 16px rgba(34, 211, 238, 0.8);
+    }
+    #shield-button {
+      position: absolute;
+      right: 12px;
+      bottom: 12px;
+      display: none;
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      border: 3px solid white;
+      background: radial-gradient(circle at 35% 30%, #fde68a, #f59e0b);
+      color: #451a03;
+      font-weight: bold;
+      font-size: 13px;
+      line-height: 1.2;
+      cursor: pointer;
+      box-shadow: 0 0 16px rgba(250, 204, 21, 0.8);
+    }
+    canvas#game {
+      background: #0b1020;
+      border: 2px solid #374151;
+      border-radius: 8px;
+      max-width: 100%;
+      touch-action: none;
+    }
+
+    /* ===== ショップを開くボタン（画面の右はしにずっと出ている） ===== */
+    #shop-button {
+      position: fixed;
+      right: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      background: #facc15;
+      color: #111827;
+      border: none;
+      border-radius: 10px 0 0 10px;
+      padding: 12px 8px;
+      font-size: 13px;
+      font-weight: bold;
+      cursor: pointer;
+      box-shadow: -2px 2px 10px rgba(0, 0, 0, 0.4);
+      writing-mode: vertical-rl;  /* 文字を縦書きにする */
+      z-index: 5;
+    }
+    #shop-button:hover { padding-right: 12px; }
+
+    /* ===== ショップ（右からスライドして出てくる） ===== */
+    #shop {
+      position: fixed;
+      top: 0;
+      right: 0;
+      height: 100%;
+      width: 380px;
+      max-width: 92%;
+      background: #1f2937;
+      padding: 16px;
+      box-sizing: border-box;
+      overflow-y: auto;
+      transform: translateX(100%);   /* ふだんは画面の外にかくしておく */
+      transition: transform 0.25s;
+      box-shadow: -4px 0 20px rgba(0, 0, 0, 0.5);
+      z-index: 20;
+    }
+    #shop.open { transform: translateX(0); }
+    /* ショップを開いているときの、うしろの暗い幕 */
+    #shade {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      display: none;
+      z-index: 10;
+    }
+    #shade.open { display: block; }
+    .shop-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .shop-head h2 { margin: 0; }
+    .shop-coins { color: #facc15; font-weight: bold; }
+    #shop-close {
+      background: #374151;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      width: 32px;
+      height: 32px;
+      font-size: 18px;
+      cursor: pointer;
+    }
+    .tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+    .tabs button {
+      flex: 1;
+      padding: 8px;
+      border: none;
+      border-radius: 6px;
+      background: #374151;
+      color: white;
+      font-size: 15px;
+      cursor: pointer;
+    }
+    .tabs button.active { background: #38bdf8; color: #0b1020; font-weight: bold; }
+    #items { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    #items.paints { grid-template-columns: 1fr 1fr 1fr; }
+    #items.photos { grid-template-columns: 1fr; }
+    .note { font-size: 12px; color: #9ca3af; line-height: 1.5; }
+    .item {
+      background: #111827;
+      border: 2px solid transparent;
+      border-radius: 8px;
+      padding: 8px;
+      text-align: center;
+    }
+    .item.selected { border-color: #38bdf8; }
+    .item canvas { border-radius: 6px; display: block; margin: 0 auto 6px; }
+    .item .name { font-weight: bold; margin-bottom: 6px; }
+    .item .count { font-size: 12px; color: #9ca3af; margin-bottom: 6px; }
+    .item button {
+      width: 100%;
+      padding: 6px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      cursor: pointer;
+      margin-top: 4px;
+    }
+    .buy { background: #facc15; color: #111827; font-weight: bold; }
+    .buy:disabled { background: #4b5563; color: #9ca3af; cursor: not-allowed; }
+    .use { background: #374151; color: white; }
+    .use:disabled { background: #1f2937; color: #6b7280; cursor: not-allowed; }
+    .using { background: #38bdf8; color: #0b1020; font-weight: bold; }
+
+    /* ===== ペンキのページ ===== */
+    .paint-top {
+      grid-column: 1 / -1;   /* 横いっぱいに広げる */
+      background: #111827;
+      border-radius: 8px;
+      padding: 10px;
+      text-align: center;
+    }
+    .paint-top canvas { border-radius: 6px; }
+    .paint-top .hint { font-size: 12px; color: #9ca3af; margin-top: 6px; }
+    .parts { display: flex; gap: 6px; justify-content: center; margin-top: 8px; }
+    .parts button {
+      padding: 6px 10px;
+      border: 2px solid #374151;
+      border-radius: 6px;
+      background: #1f2937;
+      color: white;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .parts button.active { border-color: #38bdf8; background: #0c4a6e; font-weight: bold; }
+    .swatch {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      margin: 0 auto 6px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+    }
+  </style>
+</head>
+<body>
+  <h1 class="logo">STARFALL</h1>
+  <div id="info">
+    <span id="stage">STAGE 1</span>　<span id="hearts">♥♥♥</span>　SCORE <span id="score">0</span>　BEST <span id="best">0</span>　🪙 <span id="coins">0</span>　<span class="gem">💎 <span id="gems">0</span></span>
+    <button id="pause-button" disabled>⏸ PAUSE</button>
+  </div>
+
+  <div id="main">
+    <div id="stage-wrap">
+      <canvas id="game" width="400" height="600"></canvas>
+      <button id="shield-button">🛡<br>SHIELD<br><small>S key</small></button>
+      <button id="slow-button">⏱<br>SLOW<br><small>D key</small></button>
+
+      <!-- ホーム画面 -->
+      <div id="home" class="overlay show">
+        <div class="home-en">DODGE · SURVIVE · ASCEND</div>
+        <div class="home-title">STARFALL</div>
+        <div class="home-sub">スターフォール</div>
+        <div class="wallet">
+          <span>🪙 <span id="home-coins">0</span></span>
+          <span class="gem">💎 <span id="home-gems">0</span></span>
+        </div>
+        <div class="home-stats">
+          🏆 HIGH SCORE <b id="home-best">0</b><br>
+          🚩 BEST STAGE <b id="home-stage">1</b>
+        </div>
+        <button id="btn-start" class="big-btn">▶ START</button>
+        <div class="row">
+          <button id="btn-shop" class="sub-btn">🛒 SHOP</button>
+          <button id="btn-bag" class="sub-btn">🎒 ITEMS</button>
+        </div>
+        <div id="home-equipped" class="equipped"></div>
+        <div class="note">PRESS SPACE TO START（スペースキーでもスタート）</div>
+      </div>
+
+      <!-- アイテム画面（💎で買ったアイテムをセットする） -->
+      <div id="bag" class="overlay">
+        <div class="home-sub">🎒 ITEMS</div>
+        <div class="note">「SET」したアイテムは、次のゲームで使えるよ。<br>アイテムはショップの「💎」タブで買えるよ</div>
+        <div id="bag-list" class="boost-list"></div>
+        <button id="bag-close" class="sub-btn">← BACK</button>
+      </div>
+
+      <!-- 結果画面 -->
+      <div id="result" class="overlay">
+        <div class="result-title">GAME OVER</div>
+        <div id="result-taunt-en" class="taunt-en"></div>
+        <div id="result-taunt-ja" class="taunt-ja"></div>
+        <div id="result-record" class="record">🎉 NEW RECORD!</div>
+        <div id="result-stats" class="home-stats"></div>
+        <div class="wallet">
+          <span>🪙 +<span id="result-coins">0</span></span>
+          <span class="gem">💎 +<span id="result-gems">0</span></span>
+        </div>
+        <button id="btn-retry" class="big-btn">↻ RETRY</button>
+        <button id="btn-home" class="sub-btn">🏠 HOME</button>
+      </div>
+    </div>
+    <p>← → キー（スマホは画面タッチ）で動かす／Pキーで一時停止／Sキーで無敵（セットしたとき）<br>
+       ハートが全部なくなるとゲームオーバー。♥・+20・💎のアイテムを取ろう！<br>
+       5点ごとに 🪙1枚、ステージクリアで 💎1個ゲット！</p>
+  </div>
+
+  <button id="shop-button">🛒 SHOP</button>
+  <div id="shade"></div>
+
+  <div id="shop">
+    <div class="shop-head">
+      <h2>🛒 SHOP</h2>
+      <span class="shop-coins">🪙 <span id="shop-coins">0</span>　<span class="gem">💎 <span id="shop-gems">0</span></span></span>
+      <button id="shop-close">×</button>
+    </div>
+    <div class="tabs">
+      <button id="tab-body" class="active">SHIP</button>
+      <button id="tab-paint">PAINT</button>
+      <button id="tab-theme">STAGE</button>
+      <button id="tab-photo">PHOTO</button>
+      <button id="tab-gem">💎</button>
+    </div>
+    <div id="items"></div>
+  </div>
+
+  <script>
+    // エラーが起きたら画面に表示する（原因を見つけやすくするため）
+    window.addEventListener("error", (e) => {
+      const box = document.createElement("pre");
+      box.style.cssText = "color:#fca5a5;background:#450a0a;padding:8px;white-space:pre-wrap;max-width:400px";
+      box.textContent = "エラー: " + e.message + "（" + e.lineno + "行目）";
+      document.body.prepend(box);
+    });
+
+    // ===== ショップの商品データ =====
+
+    // 機体：形ごとに「ぬれる場所（parts）」がある。def は最初の色
+    const BODIES = [
+      { id: "triangle", name: "三角形", price: 0, parts: [
+        { id: "body",   name: "本体", def: "sky" },
+        { id: "window", name: "窓",   def: "white" },
+      ]},
+      { id: "ufo", name: "UFO", price: 250, parts: [
+        { id: "body",   name: "本体",   def: "lime" },
+        { id: "window", name: "上の窓", def: "sky" },
+        { id: "light",  name: "ライト", def: "yellow" },
+      ]},
+      { id: "rocket", name: "ロケット", price: 400, parts: [
+        { id: "body",   name: "本体",       def: "white" },
+        { id: "wing",   name: "先っぽと羽", def: "red" },
+        { id: "window", name: "窓",         def: "sky" },
+      ]},
+      { id: "fighter", name: "ファイター", price: 500, parts: [
+        { id: "body",   name: "本体", def: "red" },
+        { id: "wing",   name: "つばさ", def: "white" },
+        { id: "window", name: "窓",   def: "sky" },
+      ]},
+      { id: "shuttle", name: "シャトル", price: 700, parts: [
+        { id: "body",   name: "本体",     def: "white" },
+        { id: "wing",   name: "つばさ",   def: "sky" },
+        { id: "engine", name: "エンジン", def: "yellow" },
+      ]},
+      { id: "cat", name: "ねこ", price: 900, parts: [
+        { id: "body", name: "顔",     def: "yellow" },
+        { id: "ear",  name: "耳の中", def: "red" },
+        { id: "eye",  name: "目",     def: "lime" },
+      ]},
+      { id: "crystal", name: "クリスタル", price: 1200, parts: [
+        { id: "body",  name: "本体", def: "sky" },
+        { id: "shine", name: "光",   def: "white" },
+        { id: "core",  name: "コア", def: "lime" },
+      ]},
+    ];
+
+    // ペンキ：price が 0 のものは無料で何か所でもぬれる
+    // お金がかかるペンキは「1缶で1か所」。3か所ぬるなら3缶いる
+    const PAINTS = [
+      { id: "sky",     name: "スカイ",     price: 0,   color: "#38bdf8" },
+      { id: "white",   name: "ホワイト",   price: 0,   color: "#f1f5f9" },
+      { id: "yellow",  name: "イエロー",   price: 0,   color: "#facc15" },
+      { id: "lime",    name: "ライム",     price: 0,   color: "#a3e635" },
+      { id: "red",     name: "レッド",     price: 0,   color: "#ef4444" },
+      { id: "orange",  name: "オレンジ",   price: 50,  color: "#fb923c" },
+      { id: "pink",    name: "ピンク",     price: 70,  color: "#f472b6" },
+      { id: "purple",  name: "パープル",   price: 70,  color: "#a855f7" },
+      { id: "navy",    name: "ネイビー",   price: 80,  color: "#1e40af" },
+      { id: "black",   name: "ブラック",   price: 100,  color: "#27272a" },
+      { id: "gold",    name: "ゴールド",   price: 300,  color: "gold" },     // キラキラ光る
+      { id: "rainbow", name: "レインボー", price: 600, color: "rainbow" },  // 色がずっと変わる
+    ];
+
+    // 背景：背景・隕石・星（背景の粒）の色と、隕石の形を決める
+    const THEMES = [
+      { id: "space",  name: "宇宙",     price: 0,   bg: "#0b1020", rock: "#f97316", star: "#ffffff", rockShape: "circle" },
+      { id: "ocean",  name: "深海",     price: 300,  bg: "#06304a", rock: "#e2e8f0", star: "#67e8f9", rockShape: "bubble" },
+      { id: "sunset", name: "夕焼け",   price: 400, bg: "#7c2d12", rock: "#1c1917", star: "#fde68a", rockShape: "circle" },
+      { id: "candy",  name: "おかし",   price: 500, bg: "#fbcfe8", rock: "#db2777", star: "#ffffff", rockShape: "candy" },
+      { id: "cyber",  name: "サイバー", price: 800, bg: "#020617", rock: "#22d3ee", star: "#d946ef", rockShape: "square" },
+      { id: "forest", name: "森",       price: 1000, bg: "#14532d", rock: "#a16207", star: "#bbf7d0", rockShape: "circle" },
+      { id: "snow",     name: "雪山",       price: 600,  bg: "#1e3a5f", rock: "#f8fafc", star: "#e0f2fe", rockShape: "snow" },
+      { id: "sakura",   name: "夜桜",       price: 700,  bg: "#2e1065", rock: "#f9a8d4", star: "#fbcfe8", rockShape: "petal" },
+      { id: "halloween", name: "ハロウィン", price: 800,  bg: "#1e1b4b", rock: "#f97316", star: "#c4b5fd", rockShape: "pumpkin" },
+      { id: "lava",     name: "溶岩",       price: 900,  bg: "#1c0a00", rock: "#57301a", star: "#fb923c", rockShape: "magma" },
+      { id: "retro",    name: "レトロ",     price: 1100, bg: "#000000", rock: "#22c55e", star: "#4ade80", rockShape: "pixel" },
+      { id: "galaxy",   name: "銀河",       price: 1500, bg: "#0f0524", rock: "#fde047", star: "#f0abfc", rockShape: "star" },
+    ];
+
+    // ===== ステージのデータ =====
+    // ステージは「進みスコア」が STAGE_STEP 点たまるごとに1つ進む
+    // （アイテムでもらったスコアは、ハイスコアには入るけど、進みスコアには入らない）
+    const STAGE_STEP = 250;
+
+    // 各ステージの敵の出やすさ（数字が大きいほどよく出る。書いてないものは出てこない）
+    //   rock: 隕石 / laser: レーザー / beam: 極太ビーム
+    //   shooter: ねらって撃ってくる敵 / missile: 追いかけてくるミサイル
+    //   spreader: 5方向に撃つ敵 / mine: とちゅうで爆発する機雷 / diver: ジグザグに突っこむ敵
+    //   splitter: 3つに割れる隕石 / sniper: ねらいをつけて速い弾を撃つ敵
+    //   wall: すき間のある隕石の壁 / blackhole: 自分を吸いよせるブラックホール
+    // speed: 隕石などの速さ / grow: ステージの中で時間がたつとどれだけ難しくなるか
+    // diagonal: ななめに降る隕石の割合 / tint: 画面に重ねる色 / newEnemy: 新しい敵の紹介
+    const STAGES = [
+      { name: "隕石帯",       speed: 0.9,  grow: 0.3, rock: 0.028 },
+      { name: "レーザー地帯", speed: 1.2,  grow: 0.6, rock: 0.028, laser: 0.015,
+        tint: "rgba(244,63,94,0.10)" },
+      { name: "ビーム要塞",   speed: 1.3,  grow: 0.6, rock: 0.026, laser: 0.018, beam: 0.005,
+        tint: "rgba(168,85,247,0.12)" },
+      { name: "流星群",       speed: 1.4,  grow: 0.6, rock: 0.032, laser: 0.015, beam: 0.005, diagonal: 0.5,
+        tint: "rgba(56,189,248,0.10)" },
+      { name: "敵機襲来",     speed: 1.3,  grow: 0.6, rock: 0.022, laser: 0.010, beam: 0.003, shooter: 0.006,
+        tint: "rgba(239,68,68,0.12)", newEnemy: "シューター：ねらって撃ってくる" },
+      { name: "ミサイル警報", speed: 1.35, grow: 0.6, rock: 0.022, laser: 0.010, beam: 0.003, shooter: 0.004, missile: 0.006,
+        tint: "rgba(249,115,22,0.12)", newEnemy: "ミサイル：しばらく追いかけてくる" },
+      { name: "弾幕空域",     speed: 1.4,  grow: 0.6, rock: 0.020, laser: 0.010, beam: 0.004, shooter: 0.003, missile: 0.004, spreader: 0.004,
+        tint: "rgba(217,70,239,0.12)", newEnemy: "スプレッダー：5方向に弾をばらまく" },
+      { name: "機雷原",       speed: 1.45, grow: 0.6, rock: 0.020, laser: 0.012, beam: 0.004, shooter: 0.003, missile: 0.004, spreader: 0.003, mine: 0.006,
+        tint: "rgba(234,179,8,0.10)", newEnemy: "機雷：とちゅうで爆発して弾が飛び散る" },
+      { name: "特攻隊",       speed: 1.5,  grow: 0.6, rock: 0.020, laser: 0.012, beam: 0.004, shooter: 0.003, missile: 0.004, spreader: 0.003, mine: 0.004, diver: 0.007,
+        tint: "rgba(34,197,94,0.10)", newEnemy: "ダイバー：ジグザグに突っこんでくる" },
+      { name: "総力戦",       speed: 1.6,  grow: 0.8, rock: 0.024, laser: 0.014, beam: 0.005, shooter: 0.004, missile: 0.005, spreader: 0.004, mine: 0.005, diver: 0.007,
+        tint: "rgba(220,38,38,0.14)" },
+      // ----- ここから後半戦 -----
+      { name: "分裂隕石帯",   speed: 1.6,  grow: 0.6, rock: 0.018, splitter: 0.008, laser: 0.012, beam: 0.004, shooter: 0.003, missile: 0.003,
+        tint: "rgba(251,146,60,0.12)", newEnemy: "分裂隕石：とちゅうで3つに割れる" },
+      { name: "嵐の前",       speed: 1.65, grow: 0.6, rock: 0.024, splitter: 0.006, laser: 0.014, beam: 0.005, shooter: 0.004, spreader: 0.003, mine: 0.003, diver: 0.004,
+        tint: "rgba(100,116,139,0.18)" },
+      { name: "狙撃地帯",     speed: 1.65, grow: 0.6, rock: 0.020, splitter: 0.004, laser: 0.010, sniper: 0.005, shooter: 0.002, missile: 0.003,
+        tint: "rgba(14,165,233,0.12)", newEnemy: "スナイパー：赤い線でねらってから、超速い弾を撃つ" },
+      { name: "総攻撃",       speed: 1.7,  grow: 0.6, rock: 0.020, splitter: 0.004, laser: 0.012, beam: 0.005, shooter: 0.003, missile: 0.004, spreader: 0.003, mine: 0.003, diver: 0.004, sniper: 0.003,
+        tint: "rgba(239,68,68,0.14)" },
+      { name: "隕石の壁",     speed: 1.7,  grow: 0.6, rock: 0.014, wall: 0.004, laser: 0.010, shooter: 0.002, sniper: 0.002,
+        tint: "rgba(120,53,15,0.18)", newEnemy: "隕石の壁：すき間を見つけてくぐりぬけろ" },
+      { name: "弾幕地獄",     speed: 1.75, grow: 0.6, rock: 0.016, wall: 0.002, spreader: 0.007, mine: 0.006, shooter: 0.003,
+        tint: "rgba(192,38,211,0.14)" },
+      { name: "ブラックホール", speed: 1.75, grow: 0.6, rock: 0.020, blackhole: 0.004, laser: 0.012, beam: 0.004, missile: 0.004, sniper: 0.002,
+        tint: "rgba(76,29,149,0.22)", newEnemy: "ブラックホール：近くにいると吸いよせられる" },
+      { name: "高速戦闘",     speed: 1.9,  grow: 0.6, rock: 0.024, splitter: 0.005, laser: 0.016, beam: 0.005, diver: 0.007, missile: 0.004, blackhole: 0.002,
+        tint: "rgba(56,189,248,0.14)" },
+      { name: "悪夢",         speed: 1.9,  grow: 0.7, rock: 0.020, splitter: 0.004, wall: 0.002, laser: 0.014, beam: 0.005, shooter: 0.003, missile: 0.004, spreader: 0.003, mine: 0.004, diver: 0.005, sniper: 0.003, blackhole: 0.002,
+        tint: "rgba(0,0,0,0.30)" },
+      { name: "最終決戦",     speed: 2.0,  grow: 0.8, rock: 0.022, splitter: 0.005, wall: 0.002, laser: 0.015, beam: 0.006, shooter: 0.004, missile: 0.005, spreader: 0.004, mine: 0.005, diver: 0.006, sniper: 0.004, blackhole: 0.003,
+        tint: "rgba(220,38,38,0.20)" },
+    ].map((stage, i) => ({ num: i + 1, score: i * STAGE_STEP, ...stage }));
+
+    const STAGE_BONUS = 20;          // ステージを1つ進むごとにもらえるボーナスコイン
+    const TIME_SCORE_FRAMES = 30;    // このフレーム数（30 = 約0.5秒）生き残るごとにスコア+1
+    const MAX_HEARTS = 3;            // 最初のハートの数
+    const LATE_STAGE = 11;           // このステージからハートが増える（後半戦）
+    const LATE_MAX_HEARTS = 5;       // 後半戦のハートの数
+    const INVINCIBLE_FRAMES = 90;    // ぶつかったあと無敵になる時間（90 = 約1.5秒）
+    const COUNTDOWN_FRAMES = 180;    // 再開するまでのカウントダウン（180 = 3秒）
+    // ステージをクリアしたときの、ちょっとしたあおり文章（ランダムに1つ出る）
+    // en が英語、ja がその下に小さく出る日本語訳
+    const TAUNTS = [
+      { en: "Was it a piece of cake?",      ja: "楽勝だった？" },
+      { en: "Too easy, huh?",               ja: "かんたんすぎた？" },
+      { en: "Just warming up?",             ja: "まだ準備運動？" },
+      { en: "Not bad... for a beginner.",   ja: "初心者にしては…まあまあかな" },
+      { en: "Don't get cocky!",             ja: "調子に乗るなよ！" },
+      { en: "Lucky, weren't you?",          ja: "運がよかっただけでしょ？" },
+      { en: "You call that dodging?",       ja: "それでよけてるつもり？" },
+      { en: "Okay, that was the tutorial.", ja: "はい、ここまでがチュートリアル" },
+      { en: "Still alive? Impressive.",     ja: "まだ生きてる？やるじゃん" },
+    ];
+    // 最終ステージに入ったとき
+    const FINAL_TAUNT = { en: "This is the end. Scared yet?", ja: "これが最後だ。こわくなった？" };
+    // ゲームオーバーのときのあおり文章
+    const OVER_TAUNTS = [
+      { en: "Game over already?",         ja: "もう終わり？" },
+      { en: "Try again... if you dare.",  ja: "もう一回やる？ 勇気があるならね" },
+      { en: "Was it too hard for you?",   ja: "ちょっとむずかしすぎた？" },
+      { en: "The meteors say hi.",        ja: "隕石たちが「よろしく」だってさ" },
+      { en: "So close! ...Not really.",   ja: "おしい！ …いや、そうでもないか" },
+    ];
+    const CLEAR_FRAMES = 120;  // 「STAGE CLEAR!」を出す長さ（120 = 2秒）
+    const TAUNT_FRAMES = 150;  // そのあと、あおり文章を出す長さ（150 = 2.5秒）
+    const EN_FONT = "Orbitron, sans-serif";
+    const JA_FONT = "'Dela Gothic One', sans-serif";
+    const UI_FONT = "'Chakra Petch', sans-serif";  // ボタンや数字などの英語
+    // キャンバスで使う前に、フォントを読みこんでおく（日本語は使う文字だけ）
+    try {
+      const allJa = [...TAUNTS, FINAL_TAUNT, ...OVER_TAUNTS].map((t) => t.ja).join("") + "（）";
+      document.fonts.load("900 30px Orbitron");
+      document.fonts.load("700 16px 'Chakra Petch'");
+      document.fonts.load("20px 'Dela Gothic One'", allJa);
+    } catch (e) {
+      // 読みこめなくても、ふつうのフォントで表示される
+    }
+    const pick = (list) => list[Math.floor(Math.random() * list.length)];  // リストからランダムに1つえらぶ
+    const HEART_ITEM_RATE = 0.001;   // ハートのアイテムの出やすさ
+    const BONUS_ITEM_RATE = 0.002;   // +20のアイテムの出やすさ
+
+    // ===== 💎ジェムとアイテム =====
+    // ジェムはコインよりずっと貴重。ステージクリアで1個、たまに流れてくる💎で1個
+    // コインからは 🪙1000 → 💎1 の交換だけ（コインが増えすぎてもジェムの価値が下がらないように）
+    // type が "start" のアイテムは、ゲームを始めたときに1個使う
+    // type が "active" のアイテムは、ゲーム中にボタンを押したときに1個使う（使わなければへらない）
+    const BOOSTS = [
+      { id: "heart",  icon: "💗", name: "ハート+1",       price: 5, type: "start",
+        desc: "ハートの枠が1つ増える。♥4つでスタート（後半戦は♥6つ）" },
+      { id: "shield", icon: "🛡", name: "無敵10秒",       price: 3, type: "active",
+        desc: "ゲーム中に好きなとき、ボタンかSキーで10秒無敵" },
+      { id: "slow",   icon: "⏱", name: "スロー5秒",      price: 3, type: "active",
+        desc: "ゲーム中に好きなとき、ボタンかDキーで5秒間、敵がゆっくりになる" },
+      { id: "magnet", icon: "🧲", name: "マグネット",     price: 3, type: "start",
+        desc: "そのゲームの間ずっと、近くのアイテム（♥・+20・💎）を引きよせる" },
+      { id: "coin2",  icon: "🪙", name: "コイン2倍",      price: 4, type: "start",
+        desc: "そのゲームでもらえるコインが2倍になる" },
+      { id: "dash",   icon: "🚀", name: "スタートダッシュ", price: 6, type: "start",
+        desc: "ステージ3からスタートできる（飛ばしたステージの💎とボーナスはもらえない）" },
+    ];
+    const GEM_EXCHANGE = 1000;     // 🪙1000 で 💎1 と交換
+    const GEM_ITEM_RATE = 0.0003;  // 💎のアイテムの出やすさ（とてもレア）
+    const GEM_ITEM_STAGE = 3;      // 💎のアイテムが出はじめるステージ
+    const SHIELD_FRAMES = 600;     // 無敵の長さ（600 = 10秒）
+    const SLOW_FRAMES = 300;       // スローの長さ（300 = 5秒）
+    const DASH_STAGE_INDEX = 2;    // スタートダッシュで始まるステージ（2 = ステージ3）
+    const MAGNET_RANGE = 170;      // マグネットがアイテムを引きよせる距離
+
+    // ===== セーブデータ（ブラウザに保存） =====
+    // ブラウザによってはセーブが禁止されていることがあるので、
+    // 失敗してもゲームが止まらないように try / catch で囲む
+    function load(key, defaultValue) {
+      try {
+        const saved = localStorage.getItem(key);
+        return saved === null ? defaultValue : JSON.parse(saved);
+      } catch (e) {
+        return defaultValue;  // 読めなかったら最初の値を使う
+      }
+    }
+    // 保存できたら true、できなかったら false を返す
+    function save(key, value) {
+      try {
+        localStorage.setItem(key, JSON.stringify(value));
+        return true;
+      } catch (e) {
+        return false;  // 保存できなくても、ゲームはそのまま続ける
+      }
+    }
+
+    let best = load("best", 0);
+    let coins = load("coins", 0);
+    let ownedBodies = load("ownedBodies", ["triangle"]);  // 持っている機体
+    let ownedThemes = load("ownedThemes", ["space"]);     // 持っている背景
+    let paintCans = load("paintCans", {});                // 持っているペンキの缶の数 例：{ rainbow: 3 }
+    let bodyId = load("body", "triangle");                // 使っている機体
+    let themeId = load("theme", "space");                 // 使っている背景
+    let colors = load("colors", {});                      // 機体ごと・場所ごとのペンキ 例：{ ufo: { body: "rainbow" } }
+    let gems = load("gems", 0);                           // 💎ジェム
+    let bestStage = load("bestStage", 1);                 // 今までで一番進んだステージ
+    let boosts = load("boosts", {});                      // 持っているアイテムの数 例：{ heart: 1, shield: 2 }
+    let equipped = load("equipped", {});                  // 次のゲームにセットしているか 例：{ shield: true }
+
+    // ===== 自分の写真 =====
+    // 権利を買うと、自分で選んだ写真を背景・隕石・宇宙船に使える
+    // 写真はこのブラウザの中だけに保存される（インターネットには送られない）
+    const PHOTO_SLOTS = [
+      { id: "bg",   name: "背景の写真",   price: 1500, desc: "ゲーム画面の背景が写真になる" },
+      { id: "rock", name: "隕石の写真",   price: 1000, desc: "隕石が丸く切りぬいた写真になる" },
+      { id: "ship", name: "宇宙船の写真", price: 1000, desc: "宇宙船が三角に切りぬいた写真になる" },
+    ];
+    let photoRights = load("photoRights", []);  // 権利を買った写真 例：["bg", "rock"]
+    let photoOn = load("photoOn", {});          // 写真を使っているか 例：{ bg: true }
+    const photoImages = {};                     // 読みこんだ写真の画像
+    for (const slot of PHOTO_SLOTS) {
+      const data = load("photo-" + slot.id, null);
+      if (data) setPhotoImage(slot.id, data);
+    }
+
+    function setPhotoImage(id, dataUrl) {
+      const img = new Image();
+      img.onload = () => { if (shopOpen) renderShop(); };  // 読みこめたらショップの見本を描き直す
+      img.src = dataUrl;
+      photoImages[id] = img;
+    }
+
+    // その写真を今使っているか（権利があって、使うになっていて、画像が読みこめている）
+    function photoActive(id) {
+      const img = photoImages[id];
+      return photoRights.includes(id) && photoOn[id] && img && img.complete && img.naturalWidth > 0;
+    }
+
+    // 画面の下に、少しの間だけお知らせを出す（alert のかわり）
+    function showNotice(text) {
+      const box = document.createElement("div");
+      box.className = "notice";
+      box.textContent = text;
+      document.body.appendChild(box);
+      setTimeout(() => box.remove(), 4000);
+    }
+
+    // パソコンの中から写真を選んでもらう
+    function pickPhoto(slotId) {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "image/*";
+      input.onchange = () => {
+        const file = input.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          const img = new Image();
+          img.onload = () => {
+            const dataUrl = shrinkPhoto(img, slotId);
+            setPhotoImage(slotId, dataUrl);
+            photoOn[slotId] = true;
+            save("photoOn", photoOn);
+            if (!save("photo-" + slotId, dataUrl)) {
+              showNotice("写真を保存できなかったよ。ページを閉じるまでは使えるけど、次に開いたときは消えちゃうかも");
+            }
+            renderShop();
+          };
+          img.onerror = () => showNotice("この写真は読みこめなかったよ。別の写真をためしてね");
+          img.src = reader.result;
+        };
+        reader.readAsDataURL(file);
+      };
+      input.click();
+    }
+
+    // 写真を小さくして、保存しやすくする（背景は400×600、隕石と宇宙船は128×128）
+    // 形が合わないときは、すき間ができないように拡大して、はみ出たところを切る
+    function shrinkPhoto(img, slotId) {
+      const [w, h] = slotId === "bg" ? [400, 600] : [128, 128];
+      const c = document.createElement("canvas");
+      c.width = w;
+      c.height = h;
+      const scale = Math.max(w / img.width, h / img.height);
+      const dw = img.width * scale, dh = img.height * scale;
+      c.getContext("2d").drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh);
+      return c.toDataURL("image/jpeg", 0.85);
+    }
+
+    // 写真の背景を描く（少し暗くして、敵を見やすくする）
+    function drawPhotoBackground(c, w, h, starList) {
+      c.drawImage(photoImages.bg, 0, 0, w, h);
+      c.fillStyle = "rgba(0,0,0,0.3)";
+      c.fillRect(0, 0, w, h);
+      c.fillStyle = "rgba(255,255,255,0.8)";
+      for (const star of starList) c.fillRect(star.x, star.y, star.size, star.size);
+    }
+
+    // 写真の隕石を描く（丸く切りぬいて、くるくる回す）
+    function drawPhotoRock(c, x, y, size, look) {
+      const r = size / 2;
+      c.save();
+      c.translate(x + r, y + r);
+      c.rotate(look.angle);
+      c.beginPath();
+      c.arc(0, 0, r, 0, Math.PI * 2);
+      c.clip();
+      c.drawImage(photoImages.rock, -r, -r, size, size);
+      c.restore();
+      c.strokeStyle = "rgba(255,255,255,0.6)";
+      c.lineWidth = 2;
+      c.beginPath();
+      c.arc(x + r, y + r, r, 0, Math.PI * 2);
+      c.stroke();
+    }
+
+    // 写真の宇宙船を描く（当たり判定と同じ三角に切りぬく）
+    function drawPhotoShip(c, x, y, w, h) {
+      const tri = new Path2D();
+      tri.moveTo(x + w / 2, y);
+      tri.lineTo(x + w, y + h);
+      tri.lineTo(x, y + h);
+      tri.closePath();
+      c.save();
+      c.clip(tri);
+      c.drawImage(photoImages.ship, x, y, w, h);
+      c.restore();
+      c.strokeStyle = "white";
+      c.lineWidth = 2;
+      c.stroke(tri);
+    }
+
+    // 見つからないとき（セーブデータが変なとき）は最初の商品を使う
+    function findBody(id)  { return BODIES.find((b) => b.id === id) || BODIES[0]; }
+    function findPaint(id) { return PAINTS.find((p) => p.id === id) || PAINTS[0]; }
+    function currentBody()  { return findBody(bodyId); }
+    function currentTheme() { return THEMES.find((t) => t.id === themeId) || THEMES[0]; }
+
+    // その機体の、場所ごとのペンキID（まだぬってない場所は最初の色）
+    function paintsOf(body) {
+      const result = {};
+      for (const part of body.parts) {
+        result[part.id] = (colors[body.id] && colors[body.id][part.id]) || part.def;
+      }
+      return result;
+    }
+
+    // そのペンキを今、何か所に使っているか（すべての機体を合わせて数える）
+    function usedCans(paintId) {
+      let n = 0;
+      for (const body of BODIES) {
+        const p = paintsOf(body);
+        for (const part of body.parts) if (p[part.id] === paintId) n++;
+      }
+      return n;
+    }
+
+    // ペンキIDを、実際に描く色に変える（ゴールドとレインボーは時間で変わる）
+    // shift は場所ごとに色を少しずらすため（全部レインボーでも虹っぽく見える）
+    function paintColor(paintId, shift = 0) {
+      const paint = findPaint(paintId);
+      const t = Date.now();
+      if (paint.color === "rainbow") return "hsl(" + ((t / 10 + shift * 120) % 360) + ", 90%, 60%)";
+      if (paint.color === "gold") return "hsl(45, 95%, " + (55 + Math.sin(t / 200) * 12) + "%)";
+      return paint.color;
+    }
+
+    // ===== 準備 =====
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");   // 絵を描くための道具
+    const W = canvas.width, H = canvas.height;
+    const scoreText = document.getElementById("score");
+    const bestText = document.getElementById("best");
+    const coinsText = document.getElementById("coins");
+    const stageText = document.getElementById("stage");
+    const heartsText = document.getElementById("hearts");
+    const pauseButton = document.getElementById("pause-button");
+    const shieldButton = document.getElementById("shield-button");
+    const slowButton = document.getElementById("slow-button");
+
+    // プレイヤー（自分の宇宙船）
+    const player = { x: 180, y: 540, w: 40, h: 40, speed: 6 };
+
+    let rocks = [];        // 落ちてくる隕石
+    let lasers = [];       // 落ちてくるレーザー（ステージ2から）
+    let beams = [];        // 極太ビーム（ステージ3から）
+    let enemies = [];      // 敵（シューター・ミサイル・スプレッダー・機雷・ダイバー）
+    let bullets = [];      // 敵が撃った弾
+    let items = [];        // 流れてくるアイテム（ハート・+20）
+    let popups = [];       // 「+20」などの、ふわっと出て消える文字
+    let stageIndex = 0;    // 今のステージ（0 = ステージ1）
+    let stageFrame = 0;    // 今のステージが始まってからのフレーム数
+    let bannerTimer = 0;   // 「STAGE 2」の表示を出しておく残り時間
+    let bannerTotal = 0;     // 「STAGE 2」の表示を出す長さ（全体）
+    let bannerTaunt = null;  // ステージクリアのときのあおり文章（ないときは null）
+    let overTaunt = null;    // ゲームオーバーのときのあおり文章
+    let score = 0;         // スコア（アイテムの分もふくむ。ハイスコアもこれ）
+    let progress = 0;      // 進みスコア（ステージを進むのに使う。アイテムの分はふくまない）
+    let maxHearts = MAX_HEARTS;  // 今のハートの最大数（後半戦で5になる）
+    let hearts = MAX_HEARTS;
+    let invincible = 0;    // 無敵の残り時間（ぶつかった直後）
+    let earned = 0;        // 今回のゲームでもらったコイン
+    let gemsEarned = 0;    // 今回のゲームでもらったジェム
+    let extraHeart = 0;    // 「ハート+1」を使っているか（1 なら使っている）
+    let shieldReady = false;  // 「無敵10秒」を持ってきていて、まだ使っていないか
+    let shieldTimer = 0;   // 無敵10秒の残り時間
+    let slowReady = false; // 「スロー5秒」を持ってきていて、まだ使っていないか
+    let slowTimer = 0;     // スローの残り時間
+    let using = {};        // このゲームで使っている「start」アイテム 例：{ magnet: true }
+    let startStageIndex = 0;  // このゲームを始めたステージ（スタートダッシュなら 2）
+    let screen = "home";   // 今の画面："home"（ホーム） / "bag"（アイテム） / "playing"（ゲーム中） / "result"（結果）
+    let playing = false;   // ゲーム中かどうか
+    let paused = false;    // 一時停止中かどうか
+    let countdown = 0;     // 再開までのカウントダウン（0 なら動いている）
+    let frame = 0;         // 経過フレーム数
+    const keys = {};       // 押されているキー
+    let touchX = null;     // タッチしている位置
+
+    // 背景の星（ゆっくり流れる）
+    const stars = [];
+    for (let i = 0; i < 50; i++) {
+      stars.push({ x: Math.random() * W, y: Math.random() * H, size: Math.random() * 2 + 1 });
+    }
+
+    // a 以上 b 未満のランダムな数
+    function rand(a, b) { return a + Math.random() * (b - a); }
+
+    function heartString() { return "♥".repeat(hearts) + "♡".repeat(maxHearts - hearts); }
+
+    function updateInfo() {
+      scoreText.textContent = score;
+      bestText.textContent = best;
+      stageText.textContent = "STAGE " + STAGES[stageIndex].num;
+      heartsText.textContent = heartString();
+      coinsText.textContent = coins;
+      document.getElementById("shop-coins").textContent = coins;
+      document.getElementById("gems").textContent = gems;
+      document.getElementById("shop-gems").textContent = gems;
+      shieldButton.style.display = playing && shieldReady ? "block" : "none";
+      slowButton.style.display = playing && slowReady ? "block" : "none";
+      pauseButton.textContent = paused ? "▶ RESUME" : "⏸ PAUSE";
+      pauseButton.disabled = !playing;
+    }
+    updateInfo();
+
+    // ===== 操作 =====
+    document.addEventListener("keydown", (e) => {
+      // スペースや矢印でページがスクロールしたり、ボタンが押されたりしないようにする
+      if ([" ", "ArrowLeft", "ArrowRight"].includes(e.key)) e.preventDefault();
+      if (e.key === "Escape" && shopOpen) { setShop(false); return; }
+      if (shopOpen) return;  // ショップを開いている間はゲームの操作をしない
+      keys[e.key] = true;
+      if (e.key === " ") {
+        if (screen === "home" || screen === "result") start();
+        else if (paused) resume();
+      }
+      if (e.key === "s" || e.key === "S") activateShield();
+      if (e.key === "d" || e.key === "D") activateSlow();
+      if (e.key === "Escape" && screen === "bag") showScreen("home");
+      if (e.key === "p" || e.key === "P" || e.key === "Escape") togglePause();
+    });
+    document.addEventListener("keyup", (e) => { keys[e.key] = false; });
+
+    canvas.addEventListener("pointerdown", (e) => {
+      if (!playing) return;
+      if (paused) resume();
+      touchX = toCanvasX(e);
+    });
+    canvas.addEventListener("pointermove", (e) => { if (touchX !== null) touchX = toCanvasX(e); });
+    canvas.addEventListener("pointerup", () => { touchX = null; });
+
+    pauseButton.onclick = () => togglePause();
+    shieldButton.onclick = () => activateShield();
+    slowButton.onclick = () => activateSlow();
+    document.getElementById("btn-start").onclick = () => start();
+    document.getElementById("btn-retry").onclick = () => start();
+    document.getElementById("btn-home").onclick = () => showScreen("home");
+    document.getElementById("btn-shop").onclick = () => setShop(true);
+    document.getElementById("btn-bag").onclick = () => showScreen("bag");
+    document.getElementById("bag-close").onclick = () => showScreen("home");
+
+    // ほかのタブやアプリに切り替えたら、自動で一時停止
+    document.addEventListener("visibilitychange", () => { if (document.hidden) pause(); });
+
+    // 画面上の位置をキャンバスの座標に変換
+    function toCanvasX(e) {
+      const rect = canvas.getBoundingClientRect();
+      return (e.clientX - rect.left) * (W / rect.width);
+    }
+
+    // ===== 一時停止と再開 =====
+    function pause() {
+      if (!playing || paused) return;
+      paused = true;
+      countdown = 0;
+      updateInfo();
+    }
+    // 再開するときは、いきなり始めずに3秒カウントダウンする
+    function resume() {
+      if (!playing || !paused) return;
+      paused = false;
+      countdown = COUNTDOWN_FRAMES;
+      for (const k in keys) keys[k] = false;  // 押しっぱなしになっているキーをリセット
+      touchX = null;
+      updateInfo();
+    }
+    function togglePause() {
+      if (!playing) return;
+      if (paused) resume(); else pause();
+    }
+
+    // ===== 画面の切り替え =====
+    function showScreen(name) {
+      screen = name;
+      document.getElementById("home").classList.toggle("show", name === "home");
+      document.getElementById("bag").classList.toggle("show", name === "bag");
+      document.getElementById("result").classList.toggle("show", name === "result");
+      if (name === "home") renderHome();
+      if (name === "bag") renderBag();
+      updateInfo();
+    }
+
+    // ホーム画面の数字や、セットしているアイテムを表示する
+    function renderHome() {
+      document.getElementById("home-coins").textContent = coins;
+      document.getElementById("home-gems").textContent = gems;
+      document.getElementById("home-best").textContent = best;
+      document.getElementById("home-stage").textContent = bestStage;
+      const set = BOOSTS.filter((b) => equipped[b.id] && (boosts[b.id] || 0) > 0);
+      document.getElementById("home-equipped").textContent = set.length
+        ? "NEXT GAME：" + set.map((b) => b.icon + b.name).join("・")
+        : "";
+    }
+
+    // アイテム画面：持っているアイテムを「セット」したり「はずし」たりする
+    function renderBag() {
+      const list = document.getElementById("bag-list");
+      list.innerHTML = "";
+      for (const boost of BOOSTS) {
+        const have = boosts[boost.id] || 0;
+        const on = equipped[boost.id] && have > 0;
+        const row = el("div", "boost" + (on ? " on" : ""));
+        row.appendChild(el("div", "icon", boost.icon));
+        const text = el("div", "text");
+        text.innerHTML = "<b>" + boost.name + "</b>　×" + have + "<br>" + boost.desc;
+        row.appendChild(text);
+        const b = button(on ? "REMOVE" : have > 0 ? "SET" : "NONE", "sub-btn", () => {
+          equipped[boost.id] = !on;
+          save("equipped", equipped);
+          renderBag();
+        }, have === 0);
+        if (on) b.style.background = "#be185d";
+        row.appendChild(b);
+        list.appendChild(row);
+      }
+    }
+
+    // 無敵10秒を使う（ゲーム中に、ボタンかSキーで）
+    function activateShield() {
+      if (!playing || paused || countdown > 0 || shopOpen || !shieldReady) return;
+      shieldReady = false;
+      boosts.shield = Math.max(0, (boosts.shield || 0) - 1);
+      if (boosts.shield === 0) equipped.shield = false;  // 最後の1個を使ったらセットもはずれる
+      save("boosts", boosts);
+      save("equipped", equipped);
+      shieldTimer = SHIELD_FRAMES;
+      popup("🛡 無敵！", "#facc15");
+      updateInfo();
+    }
+
+    // スロー5秒を使う（ゲーム中に、ボタンかDキーで）
+    function activateSlow() {
+      if (!playing || paused || countdown > 0 || shopOpen || !slowReady) return;
+      slowReady = false;
+      boosts.slow = Math.max(0, (boosts.slow || 0) - 1);
+      if (boosts.slow === 0) equipped.slow = false;
+      save("boosts", boosts);
+      save("equipped", equipped);
+      slowTimer = SLOW_FRAMES;
+      popup("⏱ スロー！", "#67e8f9");
+      updateInfo();
+    }
+
+    // 💎ジェムをもらう
+    function addGems(n) {
+      gems += n;
+      gemsEarned += n;
+      save("gems", gems);
+      popup("💎 +" + n, "#67e8f9");
+    }
+
+    // ===== ゲームの流れ =====
+    function start() {
+      // セットした「start」アイテムは、ここで1個使う（使ったらセットははずれる）
+      using = {};
+      for (const boost of BOOSTS) {
+        if (boost.type === "start" && equipped[boost.id] && (boosts[boost.id] || 0) > 0) {
+          boosts[boost.id]--;
+          equipped[boost.id] = false;
+          using[boost.id] = true;
+        }
+      }
+      save("boosts", boosts);
+      save("equipped", equipped);
+      extraHeart = using.heart ? 1 : 0;
+      // 「active」アイテム（無敵・スロー）は、ゲーム中に使ったときにへる
+      shieldReady = !!equipped.shield && (boosts.shield || 0) > 0;
+      shieldTimer = 0;
+      slowReady = !!equipped.slow && (boosts.slow || 0) > 0;
+      slowTimer = 0;
+      gemsEarned = 0;
+      rocks = [];
+      lasers = [];
+      beams = [];
+      enemies = [];
+      bullets = [];
+      items = [];
+      popups = [];
+      score = 0;
+      progress = 0;
+      maxHearts = MAX_HEARTS + extraHeart;
+      hearts = maxHearts;
+      invincible = 0;
+      earned = 0;
+      frame = 0;
+      // スタートダッシュならステージ3から
+      startStageIndex = using.dash ? DASH_STAGE_INDEX : 0;
+      stageIndex = startStageIndex;
+      progress = STAGES[stageIndex].score;
+      stageFrame = 0;
+      bannerTimer = bannerTotal = 90;  // 最初にも「STAGE 1」を出す
+      bannerTaunt = null;
+      paused = false;
+      countdown = 0;
+      player.x = 180;
+      playing = true;
+      showScreen("playing");
+    }
+
+    function gameOver() {
+      playing = false;
+      overTaunt = pick(OVER_TAUNTS);
+      paused = false;
+      countdown = 0;
+      // スコア5点ごとにコイン1枚＋ステージボーナス
+      earned = Math.floor(score / 5) + (stageIndex - startStageIndex) * STAGE_BONUS;
+      if (using.coin2) earned *= 2;  // コイン2倍
+      coins += earned;
+      save("coins", coins);
+      const isRecord = score > best;
+      if (isRecord) {
+        best = score;
+        save("best", best);
+      }
+      shieldTimer = 0;
+      shieldReady = false;
+      slowTimer = 0;
+      slowReady = false;
+      renderShop();  // コインが増えたので、買えるものが変わるかも
+
+      // 結果画面
+      document.getElementById("result-taunt-en").textContent = overTaunt.en;
+      document.getElementById("result-taunt-ja").textContent = "（" + overTaunt.ja + "）";
+      document.getElementById("result-record").style.display = isRecord ? "block" : "none";
+      document.getElementById("result-stats").innerHTML =
+        "STAGE <b>" + STAGES[stageIndex].num + "</b>　SCORE <b>" + score + "</b><br>HIGH SCORE " + best;
+      document.getElementById("result-coins").textContent = earned;
+      document.getElementById("result-gems").textContent = gemsEarned;
+      showScreen("result");
+    }
+
+    // よけたり生き残ったりしてもらうスコア（ステージも進む）
+    function addProgress(n) {
+      score += n;
+      progress += n;
+    }
+    // アイテムでもらうスコア（ステージは進まない）
+    function addBonus(n) {
+      score += n;
+    }
+
+    // 「+20」などの文字を出す
+    function popup(text, color) {
+      popups.push({ text, color, x: player.x + player.w / 2, y: player.y - 10, t: 0 });
+    }
+
+    // 毎フレーム（1秒に約60回）呼ばれる
+    function update() {
+      const stage = STAGES[stageIndex];
+      const frozen = paused || shopOpen;  // 止まっているかどうか
+
+      // 星は流れる（ステージが進むほど速く流れて、スピード感が出る）
+      if (!frozen) {
+        for (const star of stars) {
+          star.y += star.size * 0.5 * stage.speed;
+          if (star.y > H) { star.y = 0; star.x = Math.random() * W; }
+        }
+      }
+
+      if (playing && !frozen) {
+        if (countdown > 0) countdown--;  // カウントダウン中はまだ動かない
+        else step(stage);
+      }
+
+      draw();
+      requestAnimationFrame(update);  // 次のフレームを予約
+    }
+
+    // ゲームを1コマ進める
+    function step(stage) {
+      frame++;
+      stageFrame++;
+      if (bannerTimer > 0) bannerTimer--;
+      if (invincible > 0) invincible--;
+      if (shieldTimer > 0) shieldTimer--;
+      if (slowTimer > 0) slowTimer--;
+      if (frame % TIME_SCORE_FRAMES === 0) addProgress(1);  // 生き残っているだけでスコアアップ
+
+      // 自分を動かす
+      if (keys["ArrowLeft"]) player.x -= player.speed;
+      if (keys["ArrowRight"]) player.x += player.speed;
+      if (touchX !== null) {
+        const center = player.x + player.w / 2;
+        if (touchX < center - 5) player.x -= player.speed;
+        if (touchX > center + 5) player.x += player.speed;
+      }
+      // 画面の外に出ないようにする
+      player.x = Math.max(0, Math.min(W - player.w, player.x));
+
+      // ステージ内で時間がたつほど難しくなる（どこまで難しくなるかは grow で決まる）
+      const level = 1 + Math.min(stageFrame / 900, 1) * stage.grow;
+      // 「STAGE ○」が出ている間は、新しい敵は出さない（ひと休み）
+      // スロー中は、敵や隕石を2コマに1回だけ動かす（自分はふつうに動ける）
+      const slowSkip = slowTimer > 0 && frame % 2 === 0;
+      if (!slowSkip) {
+        if (bannerTimer === 0) spawn(stage, level);
+        moveAll(stage);
+      }
+
+      // 次のステージに進むかチェック（進みスコアで判定）
+      const next = STAGES[stageIndex + 1];
+      if (next && progress >= next.score) {
+        stageIndex++;
+        stageFrame = 0;
+        bannerTimer = bannerTotal = CLEAR_FRAMES + TAUNT_FRAMES;  // 「STAGE CLEAR!」→ あおり文章の順に表示
+        bannerTaunt = STAGES[stageIndex + 1] ? pick(TAUNTS) : FINAL_TAUNT;
+        if (STAGES[stageIndex].num === LATE_STAGE) {
+          maxHearts = LATE_MAX_HEARTS + extraHeart;
+          hearts = maxHearts;  // ごほうびに満タンまで回復
+        }
+        addGems(1);  // ステージクリアで💎1個
+        if (STAGES[stageIndex].num > bestStage) {
+          bestStage = STAGES[stageIndex].num;
+          save("bestStage", bestStage);
+        }
+      }
+
+      checkHits();
+      updateInfo();
+    }
+
+    // ===== 敵やアイテムを出す =====
+    function spawn(stage, level) {
+      const chance = (rate) => Math.random() < (rate || 0) * level;
+      const count = (kind) => enemies.filter((e) => e.kind === kind).length;
+
+      // 隕石（ステージによってはななめに降る）
+      if (chance(stage.rock)) {
+        const size = rand(20, 50);
+        const diagonal = Math.random() < (stage.diagonal || 0);
+        rocks.push({
+          x: rand(0, W - size),
+          y: -size,
+          size,
+          vx: diagonal ? rand(1, 2.5) * (Math.random() < 0.5 ? -1 : 1) : 0,
+          look: makeRockLook(),
+          speed: rand(2, 5) * stage.speed * (1 + (level - 1) * 0.5),
+        });
+      }
+
+      // レーザー（細くて速い）
+      if (chance(stage.laser)) {
+        lasers.push({ x: rand(0, W - 6), y: -40, w: 6, h: 40, speed: rand(9, 13) * stage.speed });
+      }
+
+      // 極太ビーム（まず警告、そのあと発射）
+      if (beams.length < 2 && chance(stage.beam)) {
+        beams.push({ x: rand(0, W - 60), w: 60, timer: 0, warning: 70, fire: 30 });
+      }
+
+      // 撃ってくる敵（シューター・スプレッダー）は、同時に3体まで
+      const gunners = count("shooter") + count("spreader");
+      if (gunners < 3 && chance(stage.shooter)) enemies.push(makeGunner("shooter"));
+      if (gunners < 3 && chance(stage.spreader)) enemies.push(makeGunner("spreader"));
+
+      // ミサイル（同時に3つまで）
+      if (count("missile") < 3 && chance(stage.missile)) {
+        enemies.push({ kind: "missile", x: rand(30, W - 30), y: -20, angle: Math.PI / 2, speed: 3.2, t: 0, r: 6 });
+      }
+
+      // 機雷（同時に3つまで）
+      if (count("mine") < 3 && chance(stage.mine)) {
+        enemies.push({ kind: "mine", x: rand(30, W - 30), y: -20, explodeAt: rand(150, 380), fuse: -1, t: 0, r: 12 });
+      }
+
+      // ダイバー
+      if (chance(stage.diver)) {
+        enemies.push({ kind: "diver", x: rand(30, W - 30), y: -20, t: 0, r: 13 });
+      }
+
+      // 分裂隕石（大きめで、とちゅうで3つに割れる）
+      if (chance(stage.splitter)) {
+        const size = rand(46, 58);
+        rocks.push({
+          x: rand(0, W - size), y: -size, size, vx: 0, look: makeRockLook(),
+          speed: rand(2, 3.5) * stage.speed, splitAt: rand(180, 320),
+        });
+      }
+
+      // 隕石の壁（すき間は1か所だけ。前の壁がまだ上のほうにあるときは出さない）
+      if (chance(stage.wall) && !rocks.some((r) => r.wall && r.y < 250)) {
+        const gap = rand(20, W - 120);          // すき間の左はし
+        const speed = 2.2 * stage.speed * 0.7;  // 壁はみんな同じ速さ
+        for (let x = 0; x < W; x += 40) {
+          if (x + 40 > gap && x < gap + 100) continue;  // ここがすき間（約100px）
+          rocks.push({ x, y: -40, size: 38, vx: 0, look: makeRockLook(), speed, wall: true });
+        }
+      }
+
+      // スナイパー（同時に2体まで）
+      if (count("sniper") < 2 && chance(stage.sniper)) {
+        enemies.push({ kind: "sniper", x: rand(40, W - 40), y: -30, targetY: rand(50, 120), t: 0, r: 14, shots: 0, aim: null });
+      }
+
+      // ブラックホール（同時に1つまで）
+      if (count("blackhole") === 0 && chance(stage.blackhole)) {
+        enemies.push({ kind: "blackhole", x: rand(60, W - 60), y: rand(200, 360), t: 0, r: 0, life: 360 });
+      }
+
+      // アイテム（ステージの難しさに関係なく、たまに流れてくる）
+      if (Math.random() < HEART_ITEM_RATE) items.push({ type: "heart", x: rand(20, W - 20), y: -20, t: 0 });
+      if (Math.random() < BONUS_ITEM_RATE) items.push({ type: "bonus", x: rand(20, W - 20), y: -20, t: 0 });
+      if (stage.num >= GEM_ITEM_STAGE && Math.random() < GEM_ITEM_RATE) {
+        items.push({ type: "gem", x: rand(20, W - 20), y: -20, t: 0 });
+      }
+    }
+
+    // シューターとスプレッダー：上から出てきて、しばらく浮かんで撃ってから帰っていく
+    function makeGunner(kind) {
+      return { kind, x: rand(40, W - 40), y: -30, targetY: rand(60, 150), t: 0, r: 15, life: 420, cool: 60 };
+    }
+
+    // 弾を撃つ（angle の向きに speed の速さで）
+    function shoot(x, y, angle, speed) {
+      bullets.push({ x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, r: 4 });
+    }
+
+    // 自分のいる向き（角度）
+    function angleToPlayer(x, y) {
+      return Math.atan2(player.y + player.h / 2 - y, player.x + player.w / 2 - x);
+    }
+
+    // ===== 全部を動かす =====
+    function moveAll(stage) {
+      const out = (x, y, m) => y > H + m || x < -m || x > W + m;  // 画面の外に出たか
+
+      // 隕石とレーザー（画面の外に出たら、よけたのでスコア+1）
+      for (const rock of rocks) {
+        rock.y += rock.speed;
+        rock.x += rock.vx;
+        rock.look.angle += rock.look.spin;  // くるくる回す
+      }
+      for (const laser of lasers) laser.y += laser.speed;
+
+      // 分裂隕石：決まった高さまで来たら、3つの小さい隕石に割れる
+      const pieces = [];
+      for (const rock of rocks) {
+        if (rock.splitAt && rock.y > rock.splitAt) {
+          rock.split = true;
+          const size = rock.size * 0.45;
+          for (const vx of [-2.2, 0, 2.2]) {
+            pieces.push({
+              x: rock.x + (rock.size - size) / 2, y: rock.y + (rock.size - size) / 2,
+              size, vx, look: makeRockLook(), speed: rock.speed * 1.1,
+            });
+          }
+        }
+      }
+      rocks = rocks.filter((r) => !r.split).concat(pieces);
+
+      const before = rocks.length + lasers.length;
+      rocks = rocks.filter((r) => !out(r.x + r.size / 2, r.y, 60));
+      lasers = lasers.filter((l) => l.y < H);
+      addProgress(before - rocks.length - lasers.length);
+
+      // ビームは終わったら消す（よけたら3点）
+      for (const beam of beams) beam.timer++;
+      const beamsBefore = beams.length;
+      beams = beams.filter((b) => b.timer < b.warning + b.fire);
+      addProgress((beamsBefore - beams.length) * 3);
+
+      // 敵
+      for (const e of enemies) {
+        e.t++;
+        if (e.kind === "shooter" || e.kind === "spreader") {
+          if (e.t < e.life) {
+            e.y += (e.targetY - e.y) * 0.05;       // 決まった高さまで降りてくる
+            e.x += Math.sin(e.t / 40) * 1.2;        // 左右にゆらゆら
+            e.x = Math.max(20, Math.min(W - 20, e.x));
+            e.cool--;
+            if (e.cool <= 0) {
+              if (e.kind === "shooter") {
+                shoot(e.x, e.y + 10, angleToPlayer(e.x, e.y), 4);  // 自分をねらって1発
+                e.cool = 80;
+              } else {
+                for (let i = -2; i <= 2; i++) shoot(e.x, e.y + 10, Math.PI / 2 + i * 0.35, 3);  // 5方向
+                e.cool = 110;
+              }
+            }
+          } else {
+            e.y -= 3;  // 時間がきたら上に帰っていく
+            if (e.y < -40) e.gone = true;
+          }
+        } else if (e.kind === "missile") {
+          // 最初の2.5秒だけ自分の方へ向きを変える（急には曲がれない）
+          if (e.t < 150) {
+            let diff = angleToPlayer(e.x, e.y) - e.angle;
+            while (diff > Math.PI) diff -= Math.PI * 2;
+            while (diff < -Math.PI) diff += Math.PI * 2;
+            e.angle += Math.max(-0.035, Math.min(0.035, diff));
+          }
+          e.x += Math.cos(e.angle) * e.speed;
+          e.y += Math.sin(e.angle) * e.speed;
+          if (e.t > 30 && (out(e.x, e.y, 30) || e.y < -40)) e.gone = true;
+        } else if (e.kind === "mine") {
+          if (e.fuse < 0) {
+            e.y += 1.6;
+            if (e.y >= e.explodeAt) e.fuse = 45;  // 決まった高さで止まって、点滅しはじめる
+          } else {
+            e.fuse--;
+            if (e.fuse === 0) {
+              for (let i = 0; i < 10; i++) shoot(e.x, e.y, (i / 10) * Math.PI * 2, 2.8);  // 10方向に弾が飛び散る
+              e.dead = true;
+            }
+          }
+        } else if (e.kind === "diver") {
+          e.y += 3.2 * stage.speed * 0.8;
+          // ジグザグしながら、少しずつ自分の方へ寄ってくる
+          const pull = (player.x + player.w / 2 - e.x) * 0.02;
+          e.x += Math.sin(e.t / 10) * 3 + Math.max(-1.5, Math.min(1.5, pull));
+          if (out(e.x, e.y, 40)) e.gone = true;
+        } else if (e.kind === "sniper") {
+          if (e.shots < 2) {
+            e.y += (e.targetY - e.y) * 0.05;
+            const phase = e.t % 120;
+            // ねらいを決めて、赤い線を出す → 少しあとに、そこへ超速い弾を撃つ
+            if (phase === 40) e.aim = { x: player.x + player.w / 2, y: player.y + player.h / 2 };
+            if (phase === 95 && e.aim) {
+              shoot(e.x, e.y, Math.atan2(e.aim.y - e.y, e.aim.x - e.x), 10);
+              e.aim = null;
+              e.shots++;
+            }
+          } else {
+            e.y -= 3;  // 2発撃ったら帰っていく
+            if (e.y < -40) e.gone = true;
+          }
+        } else if (e.kind === "blackhole") {
+          // 出ている間、自分を横に吸いよせる（出始めと消える前は弱い）
+          const power = Math.max(0, Math.min(1, e.t / 40, (e.life - e.t) / 40));
+          const dx = e.x - (player.x + player.w / 2);
+          if (Math.abs(dx) > 2) player.x += Math.sign(dx) * 1.6 * power;
+          player.x = Math.max(0, Math.min(W - player.w, player.x));
+          if (e.t >= e.life) e.dead = true;
+        }
+      }
+      // 画面の外に出た敵はよけたのでスコア+2（機雷の爆発や、ぶつかった敵は0点）
+      for (const e of enemies) if (e.gone) addProgress(2);
+      enemies = enemies.filter((e) => !e.gone && !e.dead);
+
+      // 弾
+      for (const b of bullets) { b.x += b.vx; b.y += b.vy; }
+      bullets = bullets.filter((b) => !out(b.x, b.y, 10) && b.y > -10);
+
+      // アイテム（ゆっくり落ちてくる）
+      for (const it of items) {
+        it.y += 2;
+        it.t++;
+        // マグネット：近くのアイテムを自分の方へ引きよせる
+        if (using.magnet) {
+          const dx = player.x + player.w / 2 - it.x, dy = player.y + player.h / 2 - it.y;
+          if (Math.hypot(dx, dy) < MAGNET_RANGE) {
+            it.x += dx * 0.08;
+            it.y += dy * 0.08;
+          }
+        }
+      }
+      items = items.filter((it) => it.y < H + 20);
+
+      // 文字（ふわっと上がって消える）
+      for (const p of popups) { p.t++; p.y -= 0.7; }
+      popups = popups.filter((p) => p.t < 50);
+    }
+
+    // ===== ぶつかったかチェック =====
+    function checkHits() {
+      const tri = playerTriangle();
+
+      // アイテムを取る
+      items = items.filter((it) => {
+        if (!circleHitsTriangle(it.x, it.y, 14, tri)) return true;
+        if (it.type === "heart") {
+          if (hearts < maxHearts) {
+            hearts++;
+            popup("♥ +1", "#f472b6");
+          } else {
+            addBonus(10);  // ハートが満タンのときは +10点
+            popup("+10", "#facc15");
+          }
+        } else if (it.type === "gem") {
+          addGems(1);
+        } else {
+          addBonus(20);
+          popup("+20", "#facc15");
+        }
+        return false;  // 取ったアイテムは消す
+      });
+
+      if (invincible > 0 || shieldTimer > 0) return;  // 無敵の間はぶつからない
+
+      let hit = false;
+      // 当たったものを消す（同じものに何回も当たらないように）
+      const removeHit = (list, test) => list.filter((o) => {
+        if (!hit && test(o)) { hit = true; return false; }
+        return true;
+      });
+      rocks = removeHit(rocks, (r) => circleHitsTriangle(r.x + r.size / 2, r.y + r.size / 2, r.size * 0.42, tri));
+      lasers = removeHit(lasers, (l) => rectHitsTriangle(l.x, l.y, l.w, l.h, tri));
+      bullets = removeHit(bullets, (b) => circleHitsTriangle(b.x, b.y, b.r, tri));
+      enemies = removeHit(enemies, (e) => e.kind !== "blackhole" && circleHitsTriangle(e.x, e.y, e.r, tri));
+      for (const beam of beams) {
+        const firing = beam.timer >= beam.warning;  // 警告中は当たらない
+        if (firing && rectHitsTriangle(beam.x, 0, beam.w, H, tri)) hit = true;
+      }
+      if (hit) damage();
+    }
+
+    // ダメージを受けた：ハートが1つへって、少しの間無敵になる
+    function damage() {
+      hearts--;
+      invincible = INVINCIBLE_FRAMES;
+      popup("♥ -1", "#ef4444");
+      if (hearts <= 0) gameOver();
+      updateInfo();
+    }
+
+    // ===== 当たり判定 =====
+
+    // 自分の当たり判定の三角形（3つの角の点）。どの機体でも同じ
+    function playerTriangle() {
+      const { x, y, w, h } = player;
+      return [
+        { x: x + w / 2, y: y + 4 },      // 上の角
+        { x: x + w - 3, y: y + h - 2 },  // 右下の角
+        { x: x + 3,     y: y + h - 2 },  // 左下の角
+      ];
+    }
+
+    // 点 (px, py) が三角形の中にあるか
+    function pointInTriangle(px, py, t) {
+      const side = (a, b) => (b.x - a.x) * (py - a.y) - (b.y - a.y) * (px - a.x);
+      const s1 = side(t[0], t[1]), s2 = side(t[1], t[2]), s3 = side(t[2], t[0]);
+      return (s1 >= 0 && s2 >= 0 && s3 >= 0) || (s1 <= 0 && s2 <= 0 && s3 <= 0);
+    }
+
+    // 点 (px, py) から線分 a-b までのいちばん近い距離
+    function distToSegment(px, py, a, b) {
+      const dx = b.x - a.x, dy = b.y - a.y;
+      let t = ((px - a.x) * dx + (py - a.y) * dy) / (dx * dx + dy * dy);
+      t = Math.max(0, Math.min(1, t));
+      return Math.hypot(px - (a.x + dx * t), py - (a.y + dy * t));
+    }
+
+    // 丸（中心 cx, cy、半径 r）が三角形にぶつかっているか
+    function circleHitsTriangle(cx, cy, r, t) {
+      if (pointInTriangle(cx, cy, t)) return true;
+      for (let i = 0; i < 3; i++) {
+        if (distToSegment(cx, cy, t[i], t[(i + 1) % 3]) < r) return true;
+      }
+      return false;
+    }
+
+    // 四角が三角形にぶつかっているか
+    // 「どの向きから見ても重なっている」ときだけぶつかっている、という考え方（分離軸定理）
+    function rectHitsTriangle(rx, ry, rw, rh, t) {
+      const rect = [
+        { x: rx, y: ry }, { x: rx + rw, y: ry },
+        { x: rx + rw, y: ry + rh }, { x: rx, y: ry + rh },
+      ];
+      const axes = [{ x: 1, y: 0 }, { x: 0, y: 1 }];
+      for (let i = 0; i < 3; i++) {
+        const a = t[i], b = t[(i + 1) % 3];
+        axes.push({ x: -(b.y - a.y), y: b.x - a.x });  // 三角形の辺に直角な向き
+      }
+      for (const axis of axes) {
+        const project = (pts) => pts.map((p) => p.x * axis.x + p.y * axis.y);
+        const A = project(rect), B = project(t);
+        if (Math.max(...A) < Math.min(...B) || Math.max(...B) < Math.min(...A)) return false;  // すき間がある
+      }
+      return true;
+    }
+
+    // ===== 描画の部品（ゲーム画面とショップの見本で使い回す） =====
+
+    // 宇宙船を描く。paints は場所ごとのペンキID（例：{ body: "sky", window: "white" }）
+    function drawShip(c, body, paints, x, y, w, h) {
+      const col = (partId) => paintColor(paints[partId], body.parts.findIndex((p) => p.id === partId));
+
+      if (body.id === "triangle") {
+        // 本体
+        c.fillStyle = col("body");
+        c.beginPath();
+        c.moveTo(x + w / 2, y);
+        c.lineTo(x + w, y + h);
+        c.lineTo(x, y + h);
+        c.closePath();
+        c.fill();
+        // 窓
+        c.fillStyle = col("window");
+        c.beginPath();
+        c.ellipse(x + w / 2, y + h * 0.6, w * 0.1, h * 0.15, 0, 0, Math.PI * 2);
+        c.fill();
+      } else if (body.id === "ufo") {
+        // 上の窓（ドーム）
+        c.fillStyle = col("window");
+        c.beginPath();
+        c.arc(x + w / 2, y + h * 0.5, w * 0.25, Math.PI, 0);
+        c.fill();
+        // ドームの光るところ
+        c.fillStyle = "rgba(255,255,255,0.5)";
+        c.beginPath();
+        c.arc(x + w * 0.43, y + h * 0.4, w * 0.06, 0, Math.PI * 2);
+        c.fill();
+        // 本体（円盤）
+        c.fillStyle = col("body");
+        c.beginPath();
+        c.ellipse(x + w / 2, y + h * 0.6, w / 2, h * 0.2, 0, 0, Math.PI * 2);
+        c.fill();
+        // ライト（円盤にならんだ光）
+        c.fillStyle = col("light");
+        c.shadowColor = c.fillStyle;
+        c.shadowBlur = 8;
+        for (const dx of [-0.3, -0.15, 0, 0.15, 0.3]) {
+          c.beginPath();
+          c.arc(x + w / 2 + dx * w, y + h * 0.63, w * 0.045, 0, Math.PI * 2);
+          c.fill();
+        }
+        c.shadowBlur = 0;
+      } else if (body.id === "fighter") {
+        // つばさ（うしろに流れる形）
+        c.fillStyle = col("wing");
+        c.beginPath();
+        c.moveTo(x + w * 0.5, y + h * 0.35);
+        c.lineTo(x + w, y + h * 0.85);
+        c.lineTo(x + w * 0.5, y + h * 0.7);
+        c.lineTo(x, y + h * 0.85);
+        c.closePath();
+        c.fill();
+        // 本体（細長い胴体）
+        c.fillStyle = col("body");
+        c.beginPath();
+        c.moveTo(x + w * 0.5, y);
+        c.lineTo(x + w * 0.62, y + h * 0.3);
+        c.lineTo(x + w * 0.6, y + h);
+        c.lineTo(x + w * 0.4, y + h);
+        c.lineTo(x + w * 0.38, y + h * 0.3);
+        c.closePath();
+        c.fill();
+        // 窓
+        c.fillStyle = col("window");
+        c.beginPath();
+        c.ellipse(x + w / 2, y + h * 0.33, w * 0.06, h * 0.11, 0, 0, Math.PI * 2);
+        c.fill();
+      } else if (body.id === "shuttle") {
+        // つばさ（大きな三角）
+        c.fillStyle = col("wing");
+        c.beginPath();
+        c.moveTo(x + w / 2, y + h * 0.3);
+        c.lineTo(x + w, y + h * 0.88);
+        c.lineTo(x, y + h * 0.88);
+        c.closePath();
+        c.fill();
+        // 本体（先が丸い胴体）
+        c.fillStyle = col("body");
+        c.beginPath();
+        c.arc(x + w / 2, y + w * 0.15, w * 0.15, Math.PI, 0);
+        c.lineTo(x + w * 0.65, y + h * 0.85);
+        c.lineTo(x + w * 0.35, y + h * 0.85);
+        c.closePath();
+        c.fill();
+        // エンジンと、チラチラする火
+        c.fillStyle = col("engine");
+        c.fillRect(x + w * 0.36, y + h * 0.85, w * 0.11, h * 0.12);
+        c.fillRect(x + w * 0.53, y + h * 0.85, w * 0.11, h * 0.12);
+        c.globalAlpha = 0.5 + Math.random() * 0.3;
+        c.beginPath();
+        c.moveTo(x + w * 0.36, y + h * 0.97);
+        c.lineTo(x + w * 0.5, y + h * (1.1 + Math.random() * 0.1));
+        c.lineTo(x + w * 0.64, y + h * 0.97);
+        c.fill();
+        c.globalAlpha = 1;
+      } else if (body.id === "cat") {
+        const cx = x + w / 2, cy = y + h * 0.58, r = w * 0.42;
+        // 耳（外側は顔と同じ色、内側は「耳の中」の色）
+        c.fillStyle = col("body");
+        c.beginPath();
+        c.moveTo(cx - r * 0.95, cy - r * 0.2); c.lineTo(cx - r * 0.75, y); c.lineTo(cx - r * 0.2, cy - r * 0.8);
+        c.moveTo(cx + r * 0.95, cy - r * 0.2); c.lineTo(cx + r * 0.75, y); c.lineTo(cx + r * 0.2, cy - r * 0.8);
+        c.fill();
+        c.fillStyle = col("ear");
+        c.beginPath();
+        c.moveTo(cx - r * 0.75, cy - r * 0.45); c.lineTo(cx - r * 0.68, y + h * 0.12); c.lineTo(cx - r * 0.4, cy - r * 0.7);
+        c.moveTo(cx + r * 0.75, cy - r * 0.45); c.lineTo(cx + r * 0.68, y + h * 0.12); c.lineTo(cx + r * 0.4, cy - r * 0.7);
+        c.fill();
+        // 顔
+        c.fillStyle = col("body");
+        c.beginPath();
+        c.arc(cx, cy, r, 0, Math.PI * 2);
+        c.fill();
+        // 目（黒いたてのひとみ）
+        c.fillStyle = col("eye");
+        c.beginPath();
+        c.ellipse(cx - r * 0.4, cy - r * 0.1, r * 0.18, r * 0.24, 0, 0, Math.PI * 2);
+        c.ellipse(cx + r * 0.4, cy - r * 0.1, r * 0.18, r * 0.24, 0, 0, Math.PI * 2);
+        c.fill();
+        c.fillStyle = "#111827";
+        c.fillRect(cx - r * 0.43, cy - r * 0.28, r * 0.06, r * 0.36);
+        c.fillRect(cx + r * 0.37, cy - r * 0.28, r * 0.06, r * 0.36);
+        // 鼻とひげ
+        c.fillStyle = "#f472b6";
+        c.beginPath();
+        c.moveTo(cx - r * 0.1, cy + r * 0.2); c.lineTo(cx + r * 0.1, cy + r * 0.2); c.lineTo(cx, cy + r * 0.32);
+        c.fill();
+        c.strokeStyle = "rgba(17,24,39,0.6)";
+        c.lineWidth = 1;
+        c.beginPath();
+        for (const side of [-1, 1]) {
+          c.moveTo(cx + side * r * 0.25, cy + r * 0.3); c.lineTo(cx + side * r * 0.95, cy + r * 0.2);
+          c.moveTo(cx + side * r * 0.25, cy + r * 0.4); c.lineTo(cx + side * r * 0.95, cy + r * 0.5);
+        }
+        c.stroke();
+      } else if (body.id === "crystal") {
+        const top = { x: x + w / 2, y: y };
+        const right = { x: x + w, y: y + h * 0.45 };
+        const bottom = { x: x + w / 2, y: y + h };
+        const left = { x: x, y: y + h * 0.45 };
+        const mid = { x: x + w / 2, y: y + h * 0.45 };
+        // 本体（ひし形）
+        c.fillStyle = col("body");
+        c.beginPath();
+        c.moveTo(top.x, top.y); c.lineTo(right.x, right.y); c.lineTo(bottom.x, bottom.y); c.lineTo(left.x, left.y);
+        c.closePath();
+        c.fill();
+        // 光（左上の面を明るくして、宝石っぽく）
+        c.fillStyle = col("shine");
+        c.globalAlpha = 0.65;
+        c.beginPath();
+        c.moveTo(top.x, top.y); c.lineTo(mid.x, mid.y); c.lineTo(left.x, left.y);
+        c.closePath();
+        c.fill();
+        c.globalAlpha = 0.25;
+        c.beginPath();
+        c.moveTo(mid.x, mid.y); c.lineTo(right.x, right.y); c.lineTo(bottom.x, bottom.y);
+        c.closePath();
+        c.fill();
+        c.globalAlpha = 1;
+        // コア（真ん中で光る）
+        c.fillStyle = col("core");
+        c.shadowColor = c.fillStyle;
+        c.shadowBlur = 10;
+        c.beginPath();
+        c.moveTo(mid.x, mid.y - h * 0.12); c.lineTo(mid.x + w * 0.1, mid.y);
+        c.lineTo(mid.x, mid.y + h * 0.12); c.lineTo(mid.x - w * 0.1, mid.y);
+        c.closePath();
+        c.fill();
+        c.shadowBlur = 0;
+      } else if (body.id === "rocket") {
+        // 本体
+        c.fillStyle = col("body");
+        c.fillRect(x + w * 0.3, y + h * 0.25, w * 0.4, h * 0.6);
+        // 先っぽと羽
+        c.fillStyle = col("wing");
+        c.beginPath();
+        c.moveTo(x + w / 2, y);
+        c.lineTo(x + w * 0.7, y + h * 0.25);
+        c.lineTo(x + w * 0.3, y + h * 0.25);
+        c.fill();
+        c.beginPath();
+        c.moveTo(x + w * 0.3, y + h * 0.55);
+        c.lineTo(x, y + h);
+        c.lineTo(x + w * 0.3, y + h * 0.85);
+        c.moveTo(x + w * 0.7, y + h * 0.55);
+        c.lineTo(x + w, y + h);
+        c.lineTo(x + w * 0.7, y + h * 0.85);
+        c.fill();
+        // 窓（丸い窓）
+        c.fillStyle = col("window");
+        c.beginPath();
+        c.arc(x + w / 2, y + h * 0.45, w * 0.1, 0, Math.PI * 2);
+        c.fill();
+      }
+    }
+
+    // 色を明るく（amount がプラス）または暗く（マイナス）する
+    // 例：shade("#f97316", 0.4) → 明るいオレンジ
+    function shade(hex, amount) {
+      const n = parseInt(hex.slice(1), 16);
+      const parts = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+      const target = amount > 0 ? 255 : 0;
+      const mixed = parts.map((v) => Math.round(v + (target - v) * Math.abs(amount)));
+      return "rgb(" + mixed.join(",") + ")";
+    }
+
+    // 隕石1つ1つの「見た目のクセ」を作る（デコボコの形、クレーターの位置、回転）
+    function makeRockLook() {
+      const bumps = [];
+      for (let i = 0; i < 11; i++) bumps.push(0.74 + Math.random() * 0.26);
+      const craters = [];
+      const count = 2 + Math.floor(Math.random() * 2);
+      for (let i = 0; i < count; i++) {
+        const dist = Math.random() * 0.5;
+        const dir = Math.random() * Math.PI * 2;
+        craters.push({ dist, dir, size: 0.13 + Math.random() * 0.12 });
+      }
+      // 表面のザラザラ（小さな点）
+      const grains = [];
+      for (let i = 0; i < 10; i++) {
+        grains.push({ dist: Math.random() * 0.85, dir: Math.random() * Math.PI * 2, light: Math.random() < 0.4 });
+      }
+      return {
+        bumps,
+        craters,
+        grains,
+        angle: Math.random() * Math.PI * 2,
+        spin: (Math.random() - 0.5) * 0.04,  // 回る速さと向き
+      };
+    }
+
+    // ゴツゴツした岩っぽい隕石を描く
+    function drawRockyRock(c, color, cx, cy, r, look) {
+      // デコボコの輪郭を作る（点をなめらかにつなぐ）
+      const pts = look.bumps.map((b, i) => {
+        const a = look.angle + (i / look.bumps.length) * Math.PI * 2;
+        return { x: cx + Math.cos(a) * r * b, y: cy + Math.sin(a) * r * b };
+      });
+      // 形を Path2D に覚えさせておくと、塗る・切り抜く・ふちどるで使い回せる
+      const shape = new Path2D();
+      for (let i = 0; i < pts.length; i++) {
+        const p = pts[i], q = pts[(i + 1) % pts.length];
+        const mx = (p.x + q.x) / 2, my = (p.y + q.y) / 2;
+        if (i === 0) shape.moveTo(mx, my);
+        else shape.quadraticCurveTo(p.x, p.y, mx, my);
+      }
+      shape.quadraticCurveTo(pts[0].x, pts[0].y, (pts[0].x + pts[1].x) / 2, (pts[0].y + pts[1].y) / 2);
+      shape.closePath();
+
+      // 左上から光が当たっているように、明るい→元の色→暗いのグラデーション
+      const g = c.createRadialGradient(cx - r * 0.4, cy - r * 0.4, r * 0.1, cx, cy, r * 1.1);
+      g.addColorStop(0, shade(color, 0.35));
+      g.addColorStop(0.5, color);
+      g.addColorStop(1, shade(color, -0.55));
+      c.fillStyle = g;
+      c.fill(shape);
+
+      // ここから先は隕石の形の中だけに描く
+      c.save();
+      c.clip(shape);
+      for (const gr of look.grains) {
+        const a = look.angle + gr.dir;
+        c.fillStyle = gr.light ? shade(color, 0.25) : shade(color, -0.35);
+        c.fillRect(cx + Math.cos(a) * r * gr.dist, cy + Math.sin(a) * r * gr.dist, 1.5, 1.5);
+      }
+      for (const cr of look.craters) {
+        const a = look.angle + cr.dir;
+        const x = cx + Math.cos(a) * r * cr.dist;
+        const y = cy + Math.sin(a) * r * cr.dist;
+        const s = r * cr.size;
+        // くぼみ（暗い）
+        c.fillStyle = shade(color, -0.4);
+        c.beginPath();
+        c.arc(x, y, s, 0, Math.PI * 2);
+        c.fill();
+        // くぼみのふち（光が当たる右下側を明るく）
+        c.strokeStyle = shade(color, 0.3);
+        c.lineWidth = Math.max(1, s * 0.35);
+        c.beginPath();
+        c.arc(x, y, s, Math.PI * 0.1, Math.PI * 0.9);
+        c.stroke();
+      }
+      c.restore();
+
+      // 輪郭を少し暗くしてくっきりさせる
+      c.strokeStyle = shade(color, -0.6);
+      c.lineWidth = 1.5;
+      c.stroke(shape);
+    }
+
+    // 隕石を描く（背景によって形が変わる）
+    // look は隕石ごとの見た目のクセ（makeRockLook で作ったもの）
+    function drawRock(c, theme, x, y, size, look) {
+      const cx = x + size / 2, cy = y + size / 2, r = size / 2;
+
+      if (theme.rockShape === "circle") {
+        drawRockyRock(c, theme.rock, cx, cy, r, look);
+        return;
+      }
+
+      c.fillStyle = theme.rock;
+      c.strokeStyle = theme.rock;
+      c.beginPath();
+
+      if (theme.rockShape === "bubble") {
+        // 泡：輪っか＋光
+        c.lineWidth = 3;
+        c.arc(cx, cy, r - 2, 0, Math.PI * 2);
+        c.stroke();
+        c.beginPath();
+        c.arc(cx - r * 0.35, cy - r * 0.35, r * 0.2, 0, Math.PI * 2);
+        c.fill();
+      } else if (theme.rockShape === "candy") {
+        // あめ玉：丸＋両側の包み紙
+        c.arc(cx, cy, r * 0.6, 0, Math.PI * 2);
+        c.fill();
+        c.beginPath();
+        c.moveTo(cx - r * 0.5, cy); c.lineTo(x, cy - r * 0.5); c.lineTo(x, cy + r * 0.5);
+        c.moveTo(cx + r * 0.5, cy); c.lineTo(x + size, cy - r * 0.5); c.lineTo(x + size, cy + r * 0.5);
+        c.fill();
+      } else if (theme.rockShape === "square") {
+        // ネオンのブロック
+        c.lineWidth = 3;
+        c.strokeRect(x + 2, y + 2, size - 4, size - 4);
+      } else if (theme.rockShape === "snow") {
+        // 雪の結晶：6本のうでに、小さな枝
+        c.save();
+        c.translate(cx, cy);
+        c.rotate(look.angle);
+        c.lineWidth = 2.5;
+        c.lineCap = "round";
+        for (let i = 0; i < 6; i++) {
+          c.rotate(Math.PI / 3);
+          c.beginPath();
+          c.moveTo(0, 0); c.lineTo(0, -r);
+          c.moveTo(0, -r * 0.55); c.lineTo(-r * 0.25, -r * 0.8);
+          c.moveTo(0, -r * 0.55); c.lineTo(r * 0.25, -r * 0.8);
+          c.stroke();
+        }
+        c.restore();
+      } else if (theme.rockShape === "petal") {
+        // 桜の花：5まいの花びら＋真ん中
+        c.save();
+        c.translate(cx, cy);
+        c.rotate(look.angle);
+        for (let i = 0; i < 5; i++) {
+          c.rotate((Math.PI * 2) / 5);
+          c.beginPath();
+          c.ellipse(0, -r * 0.5, r * 0.32, r * 0.5, 0, 0, Math.PI * 2);
+          c.fill();
+        }
+        c.fillStyle = "#fde047";
+        c.beginPath();
+        c.arc(0, 0, r * 0.18, 0, Math.PI * 2);
+        c.fill();
+        c.restore();
+      } else if (theme.rockShape === "pumpkin") {
+        // かぼちゃ：3つの丸をならべて、ヘタと顔
+        c.fillStyle = "#16a34a";
+        c.fillRect(cx - r * 0.08, y, r * 0.16, r * 0.35);
+        c.fillStyle = theme.rock;
+        for (const dx of [-0.4, 0.4, 0]) {
+          c.beginPath();
+          c.ellipse(cx + dx * r, cy + r * 0.1, r * 0.55, r * 0.8, 0, 0, Math.PI * 2);
+          c.fill();
+        }
+        c.fillStyle = "#1c1917";
+        c.beginPath();
+        c.moveTo(cx - r * 0.45, cy - r * 0.05); c.lineTo(cx - r * 0.2, cy - r * 0.05); c.lineTo(cx - r * 0.32, cy - r * 0.3);
+        c.moveTo(cx + r * 0.45, cy - r * 0.05); c.lineTo(cx + r * 0.2, cy - r * 0.05); c.lineTo(cx + r * 0.32, cy - r * 0.3);
+        c.moveTo(cx - r * 0.45, cy + r * 0.3); c.lineTo(cx + r * 0.45, cy + r * 0.3); c.lineTo(cx, cy + r * 0.55);
+        c.fill();
+      } else if (theme.rockShape === "magma") {
+        // 溶岩の岩：ゴツゴツの岩が、オレンジに光る
+        c.save();
+        c.shadowColor = "#f97316";
+        c.shadowBlur = 18;
+        drawRockyRock(c, theme.rock, cx, cy, r, look);
+        c.restore();
+      } else if (theme.rockShape === "pixel") {
+        // レトロゲームの敵みたいなドット絵
+        const art = [
+          "..X....X..",
+          "...X..X...",
+          "..XXXXXX..",
+          ".XX.XX.XX.",
+          "XXXXXXXXXX",
+          "X.XXXXXX.X",
+          "X.X....X.X",
+          "...XX.XX..",
+        ];
+        const dot = size / 10;
+        art.forEach((row, j) => {
+          for (let i = 0; i < row.length; i++) {
+            if (row[i] === "X") c.fillRect(x + i * dot, y + j * dot + dot, dot, dot);
+          }
+        });
+      } else if (theme.rockShape === "star") {
+        // 光る星：5つのとがり
+        c.save();
+        c.translate(cx, cy);
+        c.rotate(look.angle);
+        c.shadowColor = theme.rock;
+        c.shadowBlur = 12;
+        c.beginPath();
+        for (let i = 0; i < 10; i++) {
+          const rr = i % 2 === 0 ? r : r * 0.45;
+          const a = (i / 10) * Math.PI * 2 - Math.PI / 2;
+          c.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
+        }
+        c.closePath();
+        c.fill();
+        c.restore();
+      }
+    }
+
+    // 背景（背景の色＋星）
+    function drawBackground(c, theme, width, height, starList) {
+      c.fillStyle = theme.bg;
+      c.fillRect(0, 0, width, height);
+      c.fillStyle = theme.star;
+      for (const star of starList) {
+        c.fillRect(star.x, star.y, star.size, star.size);
+      }
+    }
+
+    // ===== 敵・弾・アイテムの絵 =====
+
+    // ハートの形を描く（cx, cy が真ん中、s が大きさ）
+    function drawHeart(c, cx, cy, s, fill, stroke) {
+      c.beginPath();
+      c.moveTo(cx, cy + s * 0.45);
+      c.bezierCurveTo(cx - s * 0.95, cy - s * 0.1, cx - s * 0.5, cy - s * 0.85, cx, cy - s * 0.3);
+      c.bezierCurveTo(cx + s * 0.5, cy - s * 0.85, cx + s * 0.95, cy - s * 0.1, cx, cy + s * 0.45);
+      c.closePath();
+      if (fill) { c.fillStyle = fill; c.fill(); }
+      if (stroke) { c.strokeStyle = stroke; c.lineWidth = 2; c.stroke(); }
+    }
+
+    // ハートをならべて描く（♥♥♡ のように）
+    function drawHearts(c, rightX, cy, s) {
+      for (let i = 0; i < maxHearts; i++) {
+        const x = rightX - (maxHearts - 1 - i) * s * 1.25;
+        if (i < hearts) drawHeart(c, x, cy, s, "#f472b6");
+        else drawHeart(c, x, cy, s, null, "rgba(255,255,255,0.5)");
+      }
+    }
+
+    function drawEnemy(c, e) {
+      // スナイパーのねらいの赤い線（点滅する）
+      if (e.kind === "sniper" && e.aim) {
+        const blink = Math.floor(e.t / 5) % 2 === 0;
+        const ang = Math.atan2(e.aim.y - e.y, e.aim.x - e.x);
+        c.strokeStyle = blink ? "rgba(239,68,68,0.9)" : "rgba(239,68,68,0.4)";
+        c.lineWidth = 2;
+        c.setLineDash([8, 6]);
+        c.beginPath();
+        c.moveTo(e.x, e.y);
+        c.lineTo(e.x + Math.cos(ang) * 800, e.y + Math.sin(ang) * 800);
+        c.stroke();
+        c.setLineDash([]);
+        c.beginPath();
+        c.arc(e.aim.x, e.aim.y, 12, 0, Math.PI * 2);  // ねらっている場所の丸
+        c.stroke();
+      }
+      c.save();
+      c.translate(e.x, e.y);
+      if (e.kind === "shooter") {
+        // 赤い戦闘機（下向き）
+        c.fillStyle = "#64748b";
+        c.fillRect(-16, -6, 32, 6);  // つばさ
+        c.fillStyle = "#dc2626";
+        c.beginPath();
+        c.moveTo(0, 16); c.lineTo(11, -12); c.lineTo(-11, -12);
+        c.closePath();
+        c.fill();
+        c.fillStyle = "#fde047";
+        c.beginPath(); c.arc(0, -2, 3.5, 0, Math.PI * 2); c.fill();  // 目
+      } else if (e.kind === "spreader") {
+        // むらさきの丸に、5本の砲台
+        c.strokeStyle = "#a855f7";
+        c.lineWidth = 4;
+        for (let i = -2; i <= 2; i++) {
+          const a = Math.PI / 2 + i * 0.35;
+          c.beginPath(); c.moveTo(0, 0); c.lineTo(Math.cos(a) * 20, Math.sin(a) * 20); c.stroke();
+        }
+        c.fillStyle = "#7e22ce";
+        c.beginPath(); c.arc(0, 0, 14, 0, Math.PI * 2); c.fill();
+        c.fillStyle = "#f0abfc";
+        c.beginPath(); c.arc(0, -2, 5, 0, Math.PI * 2); c.fill();
+      } else if (e.kind === "missile") {
+        // 進んでいる向きに回して描く
+        c.rotate(e.angle);
+        c.fillStyle = Math.random() < 0.5 ? "#f97316" : "#fde047";  // チラチラする炎
+        c.beginPath(); c.moveTo(-9, -3); c.lineTo(-17 - Math.random() * 5, 0); c.lineTo(-9, 3); c.fill();
+        c.fillStyle = "#e2e8f0";
+        c.fillRect(-9, -3.5, 14, 7);  // 胴体
+        c.fillStyle = "#ef4444";
+        c.beginPath(); c.moveTo(5, -3.5); c.lineTo(11, 0); c.lineTo(5, 3.5); c.fill();  // 先っぽ
+      } else if (e.kind === "mine") {
+        // トゲトゲの機雷。爆発が近いと赤いランプが速く点滅する
+        c.strokeStyle = "#475569";
+        c.lineWidth = 3;
+        for (let i = 0; i < 8; i++) {
+          const a = (i / 8) * Math.PI * 2 + e.t * 0.02;
+          c.beginPath(); c.moveTo(0, 0); c.lineTo(Math.cos(a) * 16, Math.sin(a) * 16); c.stroke();
+        }
+        c.fillStyle = "#334155";
+        c.beginPath(); c.arc(0, 0, 11, 0, Math.PI * 2); c.fill();
+        const blinkSpeed = e.fuse >= 0 ? 4 : 20;
+        const on = Math.floor(e.t / blinkSpeed) % 2 === 0;
+        c.fillStyle = on ? "#ef4444" : "#7f1d1d";
+        if (on && e.fuse >= 0) { c.shadowColor = "#ef4444"; c.shadowBlur = 15; }
+        c.beginPath(); c.arc(0, 0, 4.5, 0, Math.PI * 2); c.fill();
+        c.shadowBlur = 0;
+      } else if (e.kind === "sniper") {
+        // 青い丸に、長い銃身と赤いスコープ
+        const ang = e.aim ? Math.atan2(e.aim.y - e.y, e.aim.x - e.x) : Math.PI / 2;
+        c.save();
+        c.rotate(ang);
+        c.fillStyle = "#94a3b8";
+        c.fillRect(0, -2.5, 24, 5);
+        c.restore();
+        c.fillStyle = "#0e7490";
+        c.beginPath(); c.arc(0, 0, 13, 0, Math.PI * 2); c.fill();
+        c.fillStyle = "#ef4444";
+        c.beginPath(); c.arc(0, 0, 4, 0, Math.PI * 2); c.fill();
+      } else if (e.kind === "blackhole") {
+        // うずまくブラックホール
+        const power = Math.max(0, Math.min(1, e.t / 40, (e.life - e.t) / 40));
+        const R = 45 * power + 0.1;
+        const g = c.createRadialGradient(0, 0, R * 0.2, 0, 0, R);
+        g.addColorStop(0, "black");
+        g.addColorStop(0.6, "rgba(76,29,149,0.85)");
+        g.addColorStop(1, "rgba(76,29,149,0)");
+        c.fillStyle = g;
+        c.beginPath(); c.arc(0, 0, R, 0, Math.PI * 2); c.fill();
+        c.strokeStyle = "rgba(196,181,253,0.7)";
+        c.lineWidth = 2;
+        for (let i = 0; i < 3; i++) {
+          const a = e.t * 0.08 + i * 2.1;
+          c.beginPath(); c.arc(0, 0, R * 0.7, a, a + 1.2); c.stroke();
+        }
+      } else if (e.kind === "diver") {
+        // みどりの矢じり（下向き）
+        c.fillStyle = "rgba(34,197,94,0.3)";
+        c.fillRect(-3, -26, 6, 16);  // 通ったあとのすじ
+        c.fillStyle = "#22c55e";
+        c.beginPath();
+        c.moveTo(0, 15); c.lineTo(14, -10); c.lineTo(0, -4); c.lineTo(-14, -10);
+        c.closePath();
+        c.fill();
+      }
+      c.restore();
+    }
+
+    function drawItem(c, it) {
+      const bob = Math.sin(it.t / 8) * 3;  // ふわふわゆれる
+      c.save();
+      c.shadowBlur = 16;
+      if (it.type === "heart") {
+        c.shadowColor = "#f472b6";
+        drawHeart(c, it.x, it.y + bob, 20, "#f472b6", "white");
+      } else if (it.type === "gem") {
+        // 水色にキラキラ光る宝石
+        const y = it.y + bob;
+        c.shadowColor = "#67e8f9";
+        c.shadowBlur = 20 + Math.sin(it.t / 5) * 8;
+        c.fillStyle = "#22d3ee";
+        c.beginPath();
+        c.moveTo(it.x - 14, y - 4); c.lineTo(it.x - 7, y - 12); c.lineTo(it.x + 7, y - 12);
+        c.lineTo(it.x + 14, y - 4); c.lineTo(it.x, y + 14);
+        c.closePath();
+        c.fill();
+        c.shadowBlur = 0;
+        c.fillStyle = "rgba(255,255,255,0.7)";
+        c.beginPath();
+        c.moveTo(it.x - 7, y - 12); c.lineTo(it.x, y - 4); c.lineTo(it.x + 7, y - 12);
+        c.closePath();
+        c.fill();
+      } else {
+        c.shadowColor = "#facc15";
+        c.fillStyle = "#facc15";
+        c.beginPath(); c.arc(it.x, it.y + bob, 15, 0, Math.PI * 2); c.fill();
+        c.shadowBlur = 0;
+        c.fillStyle = "#713f12";
+        c.font = "bold 13px sans-serif";
+        c.textAlign = "center";
+        c.fillText("+20", it.x, it.y + bob + 5);
+      }
+      c.restore();
+    }
+
+    // 出始めはふわっと出て、終わりはふわっと消える（t は残り時間、total は全体の長さ）
+    function fade(t, total) {
+      return Math.max(0, Math.min(1, t / 25, (total - t) / 15));
+    }
+
+    // 文章が横はばに収まるように、単語の切れ目で何行かに分ける
+    function wrapText(c, text, maxWidth) {
+      const lines = [];
+      let line = "";
+      for (const word of text.split(" ")) {
+        const test = line ? line + " " + word : word;
+        if (line && c.measureText(test).width > maxWidth) {
+          lines.push(line);
+          line = word;
+        } else {
+          line = test;
+        }
+      }
+      lines.push(line);
+      return lines;
+    }
+
+    // あおり文章を、画面の真ん中に大きく白い文字で描く（下に日本語訳）
+    function drawTaunt(taunt, t, total) {
+      const alpha = fade(t, total);
+      const grow = 1 + Math.max(0, (t - (total - 20)) / 20) * 0.3;  // 出てくるとき、少し大きいところから縮む
+
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = "rgba(0,0,0,0.6)";
+      ctx.fillRect(0, 0, W, H);
+
+      ctx.save();
+      ctx.translate(W / 2, H / 2 - 20);
+      ctx.scale(grow, grow);
+      ctx.textAlign = "center";
+
+      // 英語：白くて光る大きな文字（長い文は2行に分ける）
+      let size = 34;
+      let lines;
+      do {
+        ctx.font = "900 " + size + "px " + EN_FONT;
+        lines = wrapText(ctx, taunt.en, W - 40);
+        size -= 2;
+      } while (lines.length > 2 && size > 18);
+      const lineHeight = size * 1.35;
+      const startY = -((lines.length - 1) * lineHeight) / 2;
+      ctx.shadowColor = "rgba(125,211,252,0.9)";
+      ctx.shadowBlur = 18;
+      ctx.fillStyle = "white";
+      lines.forEach((line, i) => ctx.fillText(line, 0, startY + i * lineHeight));
+
+      // 日本語訳
+      ctx.shadowBlur = 3;
+      ctx.shadowColor = "rgba(0,0,0,0.8)";
+      ctx.font = "20px " + JA_FONT;
+      ctx.fillStyle = "rgba(255,255,255,0.9)";
+      ctx.fillText("（" + taunt.ja + "）", 0, startY + (lines.length - 1) * lineHeight + 42);
+      ctx.restore();
+      ctx.globalAlpha = 1;
+    }
+
+    // ===== ゲーム画面の描画 =====
+    function draw() {
+      const theme = currentTheme();
+      if (photoActive("bg")) drawPhotoBackground(ctx, W, H, stars);
+      else drawBackground(ctx, theme, W, H, stars);
+
+      const stage = STAGES[stageIndex];
+
+      // ステージの雰囲気の色を重ねる
+      if (stage.tint) {
+        ctx.fillStyle = stage.tint;
+        ctx.fillRect(0, 0, W, H);
+      }
+
+      // 極太ビーム
+      for (const beam of beams) {
+        if (beam.timer < beam.warning) {
+          // 警告中：点滅する赤い帯と「！」
+          const blink = Math.floor(beam.timer / 8) % 2 === 0;
+          ctx.fillStyle = blink ? "rgba(239,68,68,0.25)" : "rgba(239,68,68,0.1)";
+          ctx.fillRect(beam.x, 0, beam.w, H);
+          ctx.fillStyle = "#ef4444";
+          ctx.textAlign = "center";
+          ctx.font = "bold 36px sans-serif";
+          ctx.fillText("！", beam.x + beam.w / 2, 60);
+        } else {
+          // 発射中：まぶしい光の柱
+          ctx.shadowColor = "#f43f5e";
+          ctx.shadowBlur = 30;
+          ctx.fillStyle = "#f43f5e";
+          ctx.fillRect(beam.x, 0, beam.w, H);
+          ctx.fillStyle = "#fff1f2";
+          ctx.fillRect(beam.x + beam.w * 0.3, 0, beam.w * 0.4, H);
+          ctx.shadowBlur = 0;
+        }
+      }
+
+      for (const it of items) drawItem(ctx, it);
+      for (const rock of rocks) {
+        if (photoActive("rock")) drawPhotoRock(ctx, rock.x, rock.y, rock.size, rock.look);
+        else drawRock(ctx, theme, rock.x, rock.y, rock.size, rock.look);
+        // 分裂隕石は、オレンジの光る輪で見分けられるようにする
+        if (rock.splitAt) {
+          ctx.strokeStyle = "rgba(251,146,60," + (0.5 + Math.sin(frame / 5) * 0.4) + ")";
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.arc(rock.x + rock.size / 2, rock.y + rock.size / 2, rock.size / 2 + 3, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      }
+      for (const e of enemies) drawEnemy(ctx, e);
+
+      // レーザー（光って見えるように影をつける）
+      ctx.shadowColor = "#f43f5e";
+      ctx.shadowBlur = 12;
+      ctx.fillStyle = "#fb7185";
+      for (const laser of lasers) ctx.fillRect(laser.x, laser.y, laser.w, laser.h);
+
+      // 敵の弾
+      ctx.shadowColor = "#fb923c";
+      ctx.fillStyle = "#fde047";
+      for (const b of bullets) {
+        ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.shadowBlur = 0;
+
+      // 自分（無敵の間はチカチカ点滅する）
+      const blinkOff = invincible > 0 && Math.floor(invincible / 6) % 2 === 0;
+      if (!blinkOff) {
+        if (photoActive("ship")) {
+          drawPhotoShip(ctx, player.x, player.y, player.w, player.h);
+        } else {
+          const body = currentBody();
+          drawShip(ctx, body, paintsOf(body), player.x, player.y, player.w, player.h);
+        }
+      }
+
+      // スロー中は画面を青っぽくして、残り秒数を出す
+      if (slowTimer > 0) {
+        ctx.fillStyle = "rgba(34,211,238,0.10)";
+        ctx.fillRect(0, 0, W, H);
+        ctx.fillStyle = "#67e8f9";
+        ctx.textAlign = "right";
+        ctx.font = "bold 15px sans-serif";
+        ctx.fillText("⏱ スロー あと" + Math.ceil(slowTimer / 60) + "秒", W - 8, 70);
+      }
+
+      // 無敵10秒のバリア（最後の2秒は点滅して、もうすぐ切れることを知らせる）
+      if (shieldTimer > 0 && !(shieldTimer < 120 && Math.floor(shieldTimer / 8) % 2 === 0)) {
+        const cx = player.x + player.w / 2, cy = player.y + player.h / 2;
+        ctx.strokeStyle = "rgba(250,204,21,0.9)";
+        ctx.fillStyle = "rgba(250,204,21,0.15)";
+        ctx.shadowColor = "#facc15";
+        ctx.shadowBlur = 16;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 34, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+        // 残り秒数は右上のハートの下に出す
+        ctx.fillStyle = "#facc15";
+        ctx.textAlign = "right";
+        ctx.font = "bold 15px sans-serif";
+        ctx.fillText("🛡 無敵 あと" + Math.ceil(shieldTimer / 60) + "秒", W - 8, 50);
+      }
+
+      // 「+20」などの文字
+      ctx.textAlign = "center";
+      ctx.font = "700 20px " + UI_FONT;
+      for (const p of popups) {
+        ctx.globalAlpha = 1 - p.t / 50;
+        ctx.fillStyle = p.color;
+        ctx.fillText(p.text, p.x, p.y);
+      }
+      ctx.globalAlpha = 1;
+
+      // 上のバー：ステージ番号・次のステージまでのゲージ・ハート
+      ctx.fillStyle = "rgba(255,255,255,0.7)";
+      ctx.textAlign = "left";
+      ctx.font = "700 17px " + UI_FONT;
+      ctx.fillText("STAGE " + stage.num, 10, 24);
+      const next = STAGES[stageIndex + 1];
+      if (next) {
+        const rate = Math.min(1, (progress - stage.score) / (next.score - stage.score));
+        ctx.fillStyle = "rgba(255,255,255,0.15)";
+        ctx.fillRect(10, 32, 120, 5);
+        ctx.fillStyle = "#facc15";
+        ctx.fillRect(10, 32, 120 * rate, 5);
+      } else {
+        ctx.fillStyle = "#facc15";
+        ctx.font = "700 12px " + UI_FONT;
+        ctx.fillText("FINAL STAGE", 10, 42);
+      }
+      drawHearts(ctx, W - 18, 20, 18);
+
+      // ステージの表示
+      //   ゲームスタート：「STAGE 1」だけ
+      //   ステージクリア：①「STAGE 1 CLEAR!」と次のステージ → ② あおり文章を真ん中に大きく
+      if (playing && bannerTimer > 0 && countdown === 0) {
+        if (bannerTaunt && bannerTimer <= TAUNT_FRAMES) {
+          drawTaunt(bannerTaunt, bannerTimer, TAUNT_FRAMES);
+        } else {
+          // 表示の長さ（クリアのときは①の部分だけ）
+          const t = bannerTaunt ? bannerTimer - TAUNT_FRAMES : bannerTimer;
+          const total = bannerTaunt ? CLEAR_FRAMES : bannerTotal;
+          ctx.globalAlpha = fade(t, total);
+          const top = bannerTaunt ? 170 : 215;
+          const bottom = stage.newEnemy ? 375 : 345;
+          ctx.fillStyle = "rgba(0,0,0,0.65)";
+          ctx.fillRect(0, top, W, bottom - top);
+          ctx.textAlign = "center";
+          if (bannerTaunt) {
+            ctx.fillStyle = "#4ade80";
+            ctx.font = "900 26px " + EN_FONT;
+            ctx.fillText("STAGE " + (stage.num - 1) + " CLEAR!", W / 2, 215);
+            ctx.fillStyle = "#9ca3af";
+            ctx.font = "700 14px " + UI_FONT;
+            ctx.fillText("NEXT", W / 2, 248);
+          }
+          ctx.fillStyle = "#facc15";
+          ctx.font = "900 46px " + EN_FONT;
+          ctx.fillText("STAGE " + stage.num, W / 2, 295);
+          ctx.fillStyle = "white";
+          ctx.font = "bold 22px sans-serif";
+          ctx.fillText(stage.name, W / 2, 330);
+          if (stage.newEnemy) {
+            ctx.fillStyle = "#fca5a5";
+            ctx.font = "bold 14px sans-serif";
+            ctx.fillText("NEW!  " + stage.newEnemy, W / 2, 360);
+          }
+          if (bannerTaunt && stage.num === LATE_STAGE) {
+            ctx.fillStyle = "rgba(0,0,0,0.65)";
+            ctx.fillRect(0, bottom, W, 40);
+            ctx.fillStyle = "#f472b6";
+            ctx.font = "bold 16px sans-serif";
+            ctx.fillText("♥ ハートが " + LATE_MAX_HEARTS + " つに増えた！（満タンに回復）", W / 2, bottom + 26);
+          }
+          ctx.globalAlpha = 1;
+        }
+      }
+
+      // 一時停止中の画面
+      if (playing && paused) {
+        ctx.fillStyle = "rgba(0,0,0,0.7)";
+        ctx.fillRect(0, 0, W, H);
+        ctx.textAlign = "center";
+        ctx.fillStyle = "white";
+        ctx.font = "900 34px " + EN_FONT;
+        ctx.fillText("PAUSED", W / 2, 230);
+        ctx.font = "bold 20px sans-serif";
+        ctx.fillText("STAGE " + stage.num + "　" + stage.name, W / 2, 275);
+        drawHearts(ctx, W / 2 + (maxHearts - 1) * 15, 310, 24);
+        ctx.font = "600 17px " + UI_FONT;
+        ctx.fillStyle = "#d1d5db";
+        ctx.fillText("SCORE " + score, W / 2, 355);
+        ctx.fillText("SPACE / TAP / P to resume", W / 2, 400);
+      }
+
+      // 再開前のカウントダウン
+      if (playing && !paused && countdown > 0) {
+        ctx.fillStyle = "rgba(0,0,0,0.55)";
+        ctx.fillRect(0, 0, W, H);
+        ctx.textAlign = "center";
+        ctx.fillStyle = "#facc15";
+        ctx.font = "bold 40px sans-serif";
+        ctx.fillText("STAGE " + stage.num, W / 2, 200);
+        ctx.fillStyle = "white";
+        ctx.font = "bold 20px sans-serif";
+        ctx.fillText(stage.name, W / 2, 235);
+        drawHearts(ctx, W / 2 + (maxHearts - 1) * 15, 275, 24);
+        ctx.fillStyle = "white";
+        ctx.font = "900 80px " + EN_FONT;
+        ctx.fillText(Math.ceil(countdown / 60), W / 2, 390);
+        ctx.font = "700 17px " + UI_FONT;
+        ctx.fillStyle = "#d1d5db";
+        ctx.fillText("GET READY!", W / 2, 430);
+      }
+
+      // ショップのペンキのページを開いているときは、見本も動かす（レインボーなどのため）
+      if (shopOpen && shopTab === "paint" && paintPreview) drawPaintPreview();
+    }
+
+    // ===== ショップ =====
+    let shopTab = "body";       // "body"（機体） / "paint"（ペンキ） / "theme"（背景）
+    let selectedPart = "body";  // ペンキをぬる場所
+    let paintPreview = null;    // ペンキのページの大きな見本
+    const itemsBox = document.getElementById("items");
+    const tabButtons = {
+      body: document.getElementById("tab-body"),
+      paint: document.getElementById("tab-paint"),
+      theme: document.getElementById("tab-theme"),
+      photo: document.getElementById("tab-photo"),
+      gem: document.getElementById("tab-gem"),
+    };
+    for (const name in tabButtons) {
+      tabButtons[name].onclick = () => { shopTab = name; renderShop(); };
+    }
+
+    // ショップを開く・閉じる（開いている間はゲームが一時停止する）
+    let shopOpen = false;
+    const shopPanel = document.getElementById("shop");
+    const backdrop = document.getElementById("shade");
+    function setShop(open) {
+      shopOpen = open;
+      shopPanel.classList.toggle("open", open);
+      backdrop.classList.toggle("open", open);
+      if (open) renderShop();
+      // ゲーム中にショップを閉じたら、いきなり始めずにカウントダウン
+      else if (playing && !paused) countdown = COUNTDOWN_FRAMES;
+      if (!open && screen === "home") renderHome();
+      if (!open && screen === "bag") renderBag();
+    }
+    document.getElementById("shop-button").onclick = () => setShop(true);
+    document.getElementById("shop-close").onclick = () => setShop(false);
+    backdrop.onclick = () => setShop(false);  // うしろの暗いところを押しても閉じる
+
+    // お金を払う（足りなければ false）
+    function pay(price) {
+      if (coins < price) return false;
+      coins -= price;
+      save("coins", coins);
+      updateInfo();
+      return true;
+    }
+
+    // 小さな部品を作るためのお助け関数
+    function el(tag, className, text) {
+      const e = document.createElement(tag);
+      if (className) e.className = className;
+      if (text !== undefined) e.textContent = text;
+      return e;
+    }
+    function button(text, className, onClick, disabled) {
+      const b = el("button", className, text);
+      b.onclick = onClick;
+      b.disabled = !!disabled;
+      return b;
+    }
+
+    // ショップの表示を作り直す
+    function renderShop() {
+      for (const name in tabButtons) tabButtons[name].classList.toggle("active", shopTab === name);
+      itemsBox.innerHTML = "";
+      itemsBox.classList.toggle("paints", shopTab === "paint");
+      itemsBox.classList.toggle("photos", shopTab === "photo" || shopTab === "gem");
+      paintPreview = null;
+      if (shopTab === "body") renderBodies();
+      else if (shopTab === "paint") renderPaints();
+      else if (shopTab === "photo") renderPhotos();
+      else if (shopTab === "gem") renderGemShop();
+      else renderThemes();
+    }
+
+    // --- 機体のページ ---
+    function renderBodies() {
+      for (const body of BODIES) {
+        const card = el("div", "item" + (body.id === bodyId ? " selected" : ""));
+        const preview = el("canvas");
+        preview.width = 120;
+        preview.height = 80;
+        const c = preview.getContext("2d");
+        drawBackground(c, currentTheme(), 120, 80, previewStars);
+        drawShip(c, body, paintsOf(body), 40, 20, 40, 40);
+        card.appendChild(preview);
+        card.appendChild(el("div", "name", body.name));
+
+        if (body.id === bodyId) {
+          card.appendChild(button("EQUIPPED", "using"));
+        } else if (ownedBodies.includes(body.id)) {
+          card.appendChild(button("USE", "use", () => {
+            bodyId = body.id;
+            save("body", bodyId);
+            renderShop();
+          }));
+        } else {
+          card.appendChild(button("🪙 " + body.price, "buy", () => {
+            if (!pay(body.price)) return;
+            ownedBodies.push(body.id);
+            save("ownedBodies", ownedBodies);
+            bodyId = body.id;  // 買ったらすぐ使う
+            save("body", bodyId);
+            renderShop();
+          }, coins < body.price));  // コインが足りないと押せない
+        }
+        itemsBox.appendChild(card);
+      }
+    }
+
+    // --- ペンキのページ ---
+    function renderPaints() {
+      const body = currentBody();
+      if (!body.parts.find((p) => p.id === selectedPart)) selectedPart = body.parts[0].id;
+      const nowPaints = paintsOf(body);
+
+      // 上：今の機体の大きな見本と、ぬる場所のボタン
+      const top = el("div", "paint-top");
+      paintPreview = el("canvas");
+      paintPreview.width = 200;
+      paintPreview.height = 120;
+      top.appendChild(paintPreview);
+      const parts = el("div", "parts");
+      for (const part of body.parts) {
+        const b = button(part.name, part.id === selectedPart ? "active" : "", () => {
+          selectedPart = part.id;
+          renderShop();
+        });
+        parts.appendChild(b);
+      }
+      top.appendChild(parts);
+      top.appendChild(el("div", "hint",
+        "ぬる場所をえらんでから、ペンキの「PAINT」を押してね。お金がかかるペンキは1缶で1か所。ぬり替えると前のペンキは缶にもどるよ"));
+      itemsBox.appendChild(top);
+      drawPaintPreview();
+
+      // 下：ペンキの一覧
+      for (const paint of PAINTS) {
+        const onThisPart = nowPaints[selectedPart] === paint.id;
+        const card = el("div", "item" + (onThisPart ? " selected" : ""));
+
+        const swatch = el("div", "swatch");
+        if (paint.color === "rainbow") swatch.style.background = "conic-gradient(red, orange, yellow, lime, cyan, blue, magenta, red)";
+        else if (paint.color === "gold") swatch.style.background = "linear-gradient(135deg, #fde68a, #d97706, #fef3c7, #b45309)";
+        else swatch.style.background = paint.color;
+        card.appendChild(swatch);
+        card.appendChild(el("div", "name", paint.name));
+
+        if (paint.price === 0) {
+          card.appendChild(el("div", "count", "無料"));
+        } else {
+          const have = paintCans[paint.id] || 0;
+          const used = usedCans(paint.id);
+          card.appendChild(el("div", "count", "のこり " + (have - used) + "／" + have + "缶"));
+        }
+
+        // 「ぬる」ボタン
+        if (onThisPart) {
+          card.appendChild(button("PAINTED", "using"));
+        } else {
+          const left = paint.price === 0 ? Infinity : (paintCans[paint.id] || 0) - usedCans(paint.id);
+          card.appendChild(button("PAINT", "use", () => {
+            if (!colors[body.id]) colors[body.id] = {};
+            colors[body.id][selectedPart] = paint.id;  // 前のペンキは自動で缶にもどる
+            save("colors", colors);
+            renderShop();
+          }, left <= 0));
+        }
+
+        // 「買う」ボタン（お金がかかるペンキだけ）
+        if (paint.price > 0) {
+          card.appendChild(button("🪙 " + paint.price + " BUY", "buy", () => {
+            if (!pay(paint.price)) return;
+            paintCans[paint.id] = (paintCans[paint.id] || 0) + 1;
+            save("paintCans", paintCans);
+            renderShop();
+          }, coins < paint.price));
+        }
+        itemsBox.appendChild(card);
+      }
+    }
+
+    // ペンキのページの大きな見本を描く（ぬる場所を光らせる）
+    function drawPaintPreview() {
+      const c = paintPreview.getContext("2d");
+      const body = currentBody();
+      drawBackground(c, currentTheme(), 200, 120, previewStars);
+      drawShip(c, body, paintsOf(body), 65, 15, 70, 70);
+      const part = body.parts.find((p) => p.id === selectedPart);
+      c.fillStyle = "white";
+      c.textAlign = "center";
+      c.font = "bold 13px sans-serif";
+      c.fillText("ぬる場所：" + (part ? part.name : ""), 100, 108);
+    }
+
+    // ジェムを払う（足りなければ false）
+    function payGems(price) {
+      if (gems < price) return false;
+      gems -= price;
+      save("gems", gems);
+      updateInfo();
+      return true;
+    }
+
+    // --- 💎のページ ---
+    function renderGemShop() {
+      itemsBox.appendChild(el("div", "note",
+        "💎ジェムはステージクリアや、たまに流れてくる💎で手に入るよ。買ったアイテムは、ホームの「🎒 ITEMS」でセットしてね"));
+
+      // コインとの交換
+      const ex = el("div", "item");
+      ex.appendChild(el("div", "name", "🪙" + GEM_EXCHANGE + " → 💎1 に交換"));
+      ex.appendChild(el("div", "count", "コインをジェムにかえられるよ（逆はできない）"));
+      ex.appendChild(button("🪙 " + GEM_EXCHANGE + " で交換", "buy", () => {
+        if (!pay(GEM_EXCHANGE)) return;
+        gems++;
+        save("gems", gems);
+        updateInfo();
+        renderShop();
+      }, coins < GEM_EXCHANGE));
+      itemsBox.appendChild(ex);
+
+      // アイテム
+      for (const boost of BOOSTS) {
+        const card = el("div", "item");
+        card.appendChild(el("div", "name", boost.icon + " " + boost.name));
+        card.appendChild(el("div", "count", boost.desc));
+        card.appendChild(el("div", "count", "持っている数：" + (boosts[boost.id] || 0)));
+        card.appendChild(button("💎 " + boost.price + " BUY", "buy", () => {
+          if (!payGems(boost.price)) return;
+          boosts[boost.id] = (boosts[boost.id] || 0) + 1;
+          save("boosts", boosts);
+          renderShop();
+        }, gems < boost.price));
+        itemsBox.appendChild(card);
+      }
+    }
+
+    // --- 写真のページ ---
+    function renderPhotos() {
+      itemsBox.appendChild(el("div", "note",
+        "権利を買うと、好きな写真を使えるよ。写真はこのブラウザの中だけに保存されて、インターネットには送られないよ。" +
+        "写真を使っているあいだは、背景・ペンキの見た目より写真が優先されるよ"));
+
+      for (const slot of PHOTO_SLOTS) {
+        const owned = photoRights.includes(slot.id);
+        const img = photoImages[slot.id];
+        const hasPhoto = img && img.complete && img.naturalWidth > 0;
+        const card = el("div", "item" + (photoActive(slot.id) ? " selected" : ""));
+
+        // 見本
+        const preview = el("canvas");
+        preview.width = 200;
+        preview.height = 110;
+        const c = preview.getContext("2d");
+        drawBackground(c, currentTheme(), 200, 110, previewStars);
+        if (hasPhoto) {
+          if (slot.id === "bg") {
+            // 背景は縦長なので、真ん中あたりを見せる
+            c.drawImage(img, 0, (img.height - img.width * 110 / 200) / 2, img.width, img.width * 110 / 200, 0, 0, 200, 110);
+          } else if (slot.id === "rock") {
+            drawPhotoRock(c, 30, 15, 50, previewLooks[0]);
+            drawPhotoRock(c, 120, 40, 36, previewLooks[1]);
+          } else {
+            drawPhotoShip(c, 70, 15, 60, 60);
+          }
+        } else {
+          c.fillStyle = "rgba(255,255,255,0.7)";
+          c.textAlign = "center";
+          c.font = "bold 14px sans-serif";
+          c.fillText(owned ? "📷 写真をえらんでね" : "🔒 権利を買うと使える", 100, 60);
+        }
+        card.appendChild(preview);
+        card.appendChild(el("div", "name", slot.name));
+        card.appendChild(el("div", "count", slot.desc));
+
+        if (!owned) {
+          card.appendChild(button("🪙 " + slot.price + " UNLOCK", "buy", () => {
+            if (!pay(slot.price)) return;
+            photoRights.push(slot.id);
+            save("photoRights", photoRights);
+            renderShop();
+            pickPhoto(slot.id);  // 買ったらすぐ写真を選ぶ
+          }, coins < slot.price));
+        } else {
+          card.appendChild(button(hasPhoto ? "📷 写真を変える" : "📷 写真をえらぶ", "use", () => pickPhoto(slot.id)));
+          if (hasPhoto) {
+            const on = !!photoOn[slot.id];
+            card.appendChild(button(on ? "ON（tap to turn off）" : "USE", on ? "using" : "use", () => {
+              photoOn[slot.id] = !on;
+              save("photoOn", photoOn);
+              renderShop();
+            }));
+          }
+        }
+        itemsBox.appendChild(card);
+      }
+    }
+
+    // --- 背景のページ ---
+    function renderThemes() {
+      for (const theme of THEMES) {
+        const card = el("div", "item" + (theme.id === themeId ? " selected" : ""));
+        const preview = el("canvas");
+        preview.width = 120;
+        preview.height = 80;
+        const c = preview.getContext("2d");
+        // その背景の上に、今の宇宙船と隕石を描く
+        drawBackground(c, theme, 120, 80, previewStars);
+        drawRock(c, theme, 15, 8, 24, previewLooks[0]);
+        drawRock(c, theme, 80, 20, 18, previewLooks[1]);
+        const body = currentBody();
+        drawShip(c, body, paintsOf(body), 48, 44, 28, 28);
+        card.appendChild(preview);
+        card.appendChild(el("div", "name", theme.name));
+
+        if (theme.id === themeId) {
+          card.appendChild(button("EQUIPPED", "using"));
+        } else if (ownedThemes.includes(theme.id)) {
+          card.appendChild(button("USE", "use", () => {
+            themeId = theme.id;
+            save("theme", themeId);
+            renderShop();
+          }));
+        } else {
+          card.appendChild(button("🪙 " + theme.price, "buy", () => {
+            if (!pay(theme.price)) return;
+            ownedThemes.push(theme.id);
+            save("ownedThemes", ownedThemes);
+            themeId = theme.id;  // 買ったらすぐ使う
+            save("theme", themeId);
+            renderShop();
+          }, coins < theme.price));
+        }
+        itemsBox.appendChild(card);
+      }
+    }
+
+    // ショップの見本で使う星と隕石
+    const previewStars = [];
+    for (let i = 0; i < 14; i++) {
+      previewStars.push({ x: Math.random() * 200, y: Math.random() * 120, size: Math.random() * 2 + 1 });
+    }
+    const previewLooks = [makeRockLook(), makeRockLook()];
+
+    renderShop();
+    showScreen("home");  // 最初はホーム画面
+    update();  // ゲーム開始！
+  </script>
+</body>
+</html>
