@@ -84,7 +84,7 @@
       h1.logo { display: none; }
       #info { font-size: 13px; margin: 8px 0 6px; padding: 0 10px; text-align: center; }
       #main { padding: 0 8px 24px; }
-      .home-title { font-size: 40px; }
+      .home-title { font-size: 34px; letter-spacing: 2px; }
       .overlay { padding: 14px; gap: 9px; }
     }
 
@@ -207,6 +207,9 @@
       overflow-y: auto;
     }
     .overlay.show { display: flex; }
+    .overlay { justify-content: flex-start; }
+    .overlay > :first-child { margin-top: auto; }
+    .overlay > :last-child { margin-bottom: auto; }
     #bag { justify-content: flex-start; }  /* アイテムが多くても上が切れないように */
     .home-title {
       font-family: Orbitron, sans-serif;
@@ -449,6 +452,12 @@
       margin: 0 auto 6px;
       border: 2px solid rgba(255, 255, 255, 0.3);
     }
+    /* スマホではアイコンのボタンを小さく（ほかの設定より後ろに書いて優先させる） */
+    @media (max-width: 600px) {
+      #icon-grid { grid-template-columns: repeat(5, 44px); gap: 6px; }
+      .icon-btn { width: 44px; height: 44px; font-size: 24px; }
+      .ship-btn { width: auto; font-size: 11px; gap: 4px; }
+    }
   </style>
 </head>
 <body>
@@ -504,8 +513,8 @@
         <div class="home-sub">🪪 PROFILE</div>
         <input id="profile-name" maxlength="10" placeholder="ニックネーム（10文字まで）" autocomplete="off">
         <div class="note">本名や学校の名前は使わないでね</div>
-        <div id="icon-grid"></div>
         <label class="world-check"><input type="checkbox" id="profile-world" checked> 🌍 世界ランキングに参加する</label>
+        <div id="icon-grid"></div>
         <div id="profile-error"></div>
         <button id="profile-save" class="big-btn">SAVE</button>
         <button id="profile-close" class="sub-btn">← BACK</button>
