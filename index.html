@@ -123,6 +123,8 @@
       cursor: pointer;
     }
     .icon-btn.on { border-color: #facc15; background: #422006; }
+    .icon-btn canvas, .profile-chip canvas, .rank-icon canvas { vertical-align: middle; }
+    .ship-btn { grid-column: span 2; width: auto; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 12px; color: white; font-family: 'Chakra Petch', sans-serif; font-weight: 700; }
     #profile-error { color: #fca5a5; font-size: 13px; min-height: 18px; }
     .list-box { width: 100%; display: flex; flex-direction: column; gap: 6px; }
     .rank-row {
@@ -136,6 +138,22 @@
       font-weight: 700;
     }
     .rank-row.top { background: #1e1b4b; }
+    .rank-row.me { outline: 2px solid #facc15; }
+    .rank-tabs { display: flex; gap: 6px; width: 100%; }
+    .rank-tabs button {
+      flex: 1;
+      padding: 8px;
+      border: none;
+      border-radius: 8px;
+      background: #374151;
+      color: white;
+      font-family: 'Chakra Petch', sans-serif;
+      font-weight: 700;
+      font-size: 15px;
+      cursor: pointer;
+    }
+    .rank-tabs button.on { background: #38bdf8; color: #0b1020; }
+    .world-check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #cbd5e1; }
     .rank-no { width: 34px; text-align: center; }
     .rank-icon { font-size: 20px; }
     .rank-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
@@ -487,6 +505,7 @@
         <input id="profile-name" maxlength="10" placeholder="ニックネーム（10文字まで）" autocomplete="off">
         <div class="note">本名や学校の名前は使わないでね</div>
         <div id="icon-grid"></div>
+        <label class="world-check"><input type="checkbox" id="profile-world" checked> 🌍 世界ランキングに参加する</label>
         <div id="profile-error"></div>
         <button id="profile-save" class="big-btn">SAVE</button>
         <button id="profile-close" class="sub-btn">← BACK</button>
@@ -494,8 +513,12 @@
 
       <!-- ランキング画面 -->
       <div id="rank-screen" class="overlay">
-        <div class="home-sub">🏆 MY RANKING</div>
-        <div class="note">このスマホ・パソコンでのベスト10。世界ランキングは準備中だよ</div>
+        <div class="home-sub">🏆 RANKING</div>
+        <div class="rank-tabs">
+          <button id="tab-world" class="on">🌍 WORLD</button>
+          <button id="tab-my">📱 MY</button>
+        </div>
+        <div id="rank-note" class="note"></div>
         <div id="rank-list" class="list-box"></div>
         <button id="rank-close" class="sub-btn">← BACK</button>
       </div>
@@ -1081,6 +1104,8 @@
     document.getElementById("profile-save").onclick = () => saveProfile();
     document.getElementById("profile-close").onclick = () => showScreen("home");
     document.getElementById("btn-rank").onclick = () => showScreen("rank");
+    document.getElementById("tab-world").onclick = () => { rankTab = "world"; renderRanking(); };
+    document.getElementById("tab-my").onclick = () => { rankTab = "my"; renderRanking(); };
     document.getElementById("rank-close").onclick = () => showScreen("home");
     document.getElementById("btn-award").onclick = () => showScreen("award");
     document.getElementById("award-close").onclick = () => showScreen("home");
@@ -1140,9 +1165,14 @@
       document.getElementById("home-gems").textContent = gems;
       document.getElementById("home-best").textContent = best;
       document.getElementById("home-stage").textContent = bestStage;
-      document.getElementById("profile-chip").textContent = profile.name
-        ? profile.icon + " " + profile.name + "　✎"
-        : "🪪 ニックネームを登録しよう";
+      const chip = document.getElementById("profile-chip");
+      chip.innerHTML = "";
+      if (profile.name) {
+        chip.appendChild(iconElement(profile.icon, 22));
+        chip.appendChild(document.createTextNode(" " + profile.name + "　✎"));
+      } else {
+        chip.textContent = "🪪 ニックネームを登録しよう";
+      }
       const set = BOOSTS.filter((b) => equipped[b.id] && (boosts[b.id] || 0) > 0);
       document.getElementById("home-equipped").textContent = set.length
         ? "NEXT GAME：" + set.map((b) => b.icon + b.name).join("・")
@@ -1444,19 +1474,53 @@
     // =====================================================================
     const ICONS = ["🚀", "👽", "🐱", "🐶", "🦊", "🐼", "🐸", "🤖", "👾", "🌟", "🔥", "🐉", "⚡", "🎮", "🦈", "🐧"];
     // ニックネームに使えない言葉（悪口など）
-    const NG_WORDS = ["しね", "死ね", "ころす", "殺す", "うざ", "きも", "ばか", "バカ", "あほ", "アホ", "ぶす", "ブス", "fuck", "shit", "kill"];
+    // （Firebase のルールにも同じ言葉を入れて、データベース側でもブロックしている）
+    const NG_WORDS = ["しね", "死ね", "シネ", "ころす", "殺す", "コロス", "うざ", "ウザ", "きも", "キモ", "ばか", "バカ", "馬鹿",
+      "あほ", "アホ", "ぶす", "ブス", "ちんこ", "まんこ", "fuck", "shit", "bitch", "kill", "sex", "http", "www", ".com"];
     let profile = load("profile", { name: "", icon: "🚀" });
     let pickedIcon = profile.icon;
 
     function playerName() { return profile.name || "PLAYER"; }
 
+    // アイコンは2種類：絵文字（"🐱" など）か、自分の宇宙船（{ ship: { body: "ufo", paints: {...} } }）
+    function isShipIcon(icon) { return !!(icon && typeof icon === "object" && icon.ship); }
+    function sameIcon(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
+
+    // 今の機体とペンキで「自分の宇宙船」アイコンを作る（写真の宇宙船は使わない）
+    function myShipIcon() {
+      const body = currentBody();
+      return { ship: { body: body.id, paints: paintsOf(body) } };
+    }
+
+    // アイコンを画面に出す部品を作る（size はピクセル）
+    function iconElement(icon, size) {
+      if (isShipIcon(icon)) {
+        const c = document.createElement("canvas");
+        c.width = c.height = size * 2;  // くっきり見えるように2倍の大きさで描く
+        c.style.width = c.style.height = size + "px";
+        drawShip(c.getContext("2d"), findBody(icon.ship.body), icon.ship.paints, size * 0.25, size * 0.2, size * 1.5, size * 1.5);
+        return c;
+      }
+      return el("span", "", typeof icon === "string" ? icon : "🚀");
+    }
+
     function renderProfile() {
       document.getElementById("profile-name").value = profile.name;
+      document.getElementById("profile-world").checked = profile.world !== false;
       pickedIcon = profile.icon;
       const box = document.getElementById("icon-grid");
       box.innerHTML = "";
+      // いちばん最初に「自分の宇宙船」
+      const ship = myShipIcon();
+      const shipBtn = button("", "icon-btn ship-btn" + (isShipIcon(pickedIcon) ? " on" : ""), () => {
+        pickedIcon = ship;
+        for (const o of box.children) o.classList.toggle("on", o === shipBtn);
+      });
+      shipBtn.appendChild(iconElement(ship, 36));
+      shipBtn.appendChild(el("span", "", "MY SHIP"));
+      box.appendChild(shipBtn);
       for (const icon of ICONS) {
-        const b = button(icon, "icon-btn" + (icon === pickedIcon ? " on" : ""), () => {
+        const b = button(icon, "icon-btn" + (sameIcon(icon, pickedIcon) ? " on" : ""), () => {
           pickedIcon = icon;
           for (const o of box.children) o.classList.toggle("on", o === b);
         });
@@ -1471,7 +1535,7 @@
       if (!name) { error.textContent = "ニックネームを入れてね"; return; }
       const lower = name.toLowerCase();
       if (NG_WORDS.some((w) => lower.includes(w))) { error.textContent = "その言葉は使えないよ。別のニックネームにしてね"; return; }
-      profile = { name, icon: pickedIcon };
+      profile = { name, icon: isShipIcon(pickedIcon) ? myShipIcon() : pickedIcon, world: document.getElementById("profile-world").checked };
       save("profile", profile);
       unlock("profile");
       showScreen("home");
@@ -1491,7 +1555,108 @@
       return ranking.indexOf(entry) + 1;
     }
 
+    // =====================================================================
+    // ===== 世界ランキング（Firebase の Firestore に保存する） =====
+    // =====================================================================
+    // apiKey はゲームのページに書いて公開するためのもの。データはデータベースの「ルール」で守っている
+    const FIREBASE = { apiKey: "AIzaSyBo5h7S82Ni6_oCBrmbkQsaZp-TVDSflMY", projectId: "starfall-ranking" };
+    const FS_URL = "https://firestore.googleapis.com/v1/projects/" + FIREBASE.projectId + "/databases/(default)/documents";
+    const WORLD_SHOW = 50;  // 世界ランキングに表示する人数
+    let worldBest = load("worldBest", 0);  // 世界ランキングに送った自分の一番いいスコア
+    let rankTab = "world";
+
+    // アイコンを文字にする（宇宙船のアイコンは JSON という形の文字にする）
+    function iconToText(icon) { return isShipIcon(icon) ? JSON.stringify(icon) : String(icon); }
+    function textToIcon(text) {
+      if (text && text[0] === "{") { try { return JSON.parse(text); } catch (e) { return "🚀"; } }
+      return text || "🚀";
+    }
+
+    // スコアを送る（自分の記録を更新したときだけ）
+    async function submitWorldScore(entry) {
+      if (!profile.name || profile.world === false) return "skip";
+      if (entry.score <= worldBest) return "notbest";
+      const body = { fields: {
+        name: { stringValue: entry.name },
+        icon: { stringValue: iconToText(entry.icon).slice(0, 200) },
+        score: { integerValue: String(entry.score) },
+        stage: { integerValue: String(entry.stage) },
+        createdAt: { timestampValue: new Date().toISOString() },
+      } };
+      const res = await fetch(FS_URL + "/scores?key=" + FIREBASE.apiKey, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error("送信できなかった（" + res.status + "）");
+      worldBest = entry.score;
+      save("worldBest", worldBest);
+      return "sent";
+    }
+
+    // 上位のスコアを読みこむ（同じ人は一番いい記録だけにする）
+    async function fetchWorldTop() {
+      const query = { structuredQuery: {
+        from: [{ collectionId: "scores" }],
+        orderBy: [{ field: { fieldPath: "score" }, direction: "DESCENDING" }],
+        limit: WORLD_SHOW * 3,
+      } };
+      const res = await fetch(FS_URL + ":runQuery?key=" + FIREBASE.apiKey, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(query),
+      });
+      if (!res.ok) throw new Error("読みこめなかった（" + res.status + "）");
+      const rows = (await res.json()).filter((r) => r.document).map((r) => {
+        const f = r.document.fields;
+        return { name: f.name.stringValue, icon: textToIcon(f.icon.stringValue), score: Number(f.score.integerValue), stage: Number(f.stage.integerValue) };
+      });
+      const seen = new Set();
+      return rows.filter((r) => {
+        const key = r.name + "|" + iconToText(r.icon);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      }).slice(0, WORLD_SHOW);
+    }
+
+    function isMe(r) { return profile.name && r.name === profile.name && iconToText(r.icon) === iconToText(profile.icon); }
+
+    // ランキングの1行
+    function rankRow(r, i) {
+      const medals = ["🥇", "🥈", "🥉"];
+      const row = el("div", "rank-row" + (i < 3 ? " top" : "") + (isMe(r) ? " me" : ""));
+      row.appendChild(el("span", "rank-no", medals[i] || "#" + (i + 1)));
+      const iconBox = el("span", "rank-icon");
+      iconBox.appendChild(iconElement(r.icon, 24));
+      row.appendChild(iconBox);
+      row.appendChild(el("span", "rank-name", r.name));
+      row.appendChild(el("span", "rank-stage", "ST" + r.stage));
+      row.appendChild(el("span", "rank-score", String(r.score)));
+      return row;
+    }
+
+    async function renderWorldRanking() {
+      const list = document.getElementById("rank-list");
+      const note = document.getElementById("rank-note");
+      note.textContent = profile.name && profile.world !== false
+        ? "世界中のプレイヤーのトップ" + WORLD_SHOW + "。自分の記録を更新すると、ここにのるよ"
+        : "プロフィールでニックネームを登録すると参加できるよ";
+      list.innerHTML = "";
+      list.appendChild(el("div", "note", "🌍 読みこみ中…"));
+      try {
+        const rows = await fetchWorldTop();
+        if (rankTab !== "world") return;
+        list.innerHTML = "";
+        if (rows.length === 0) list.appendChild(el("div", "note", "まだだれもいないよ。最初の1人になろう！"));
+        rows.forEach((r, i) => list.appendChild(rankRow(r, i)));
+      } catch (e) {
+        list.innerHTML = "";
+        list.appendChild(el("div", "note", "世界ランキングを読みこめなかったよ。インターネットにつながっているか確かめてね"));
+      }
+    }
+
     function renderRanking() {
+      document.getElementById("tab-world").classList.toggle("on", rankTab === "world");
+      document.getElementById("tab-my").classList.toggle("on", rankTab === "my");
+      if (rankTab === "world") { renderWorldRanking(); return; }
+      document.getElementById("rank-note").textContent = "このスマホ・パソコンでのベスト10";
       const list = document.getElementById("rank-list");
       list.innerHTML = "";
       if (ranking.length === 0) {
@@ -1502,7 +1667,9 @@
       ranking.forEach((r, i) => {
         const row = el("div", "rank-row" + (i < 3 ? " top" : ""));
         row.appendChild(el("span", "rank-no", medals[i] || "#" + (i + 1)));
-        row.appendChild(el("span", "rank-icon", r.icon));
+        const iconBox = el("span", "rank-icon");
+        iconBox.appendChild(iconElement(r.icon, 24));
+        row.appendChild(iconBox);
         const who = el("span", "rank-name", r.name);
         row.appendChild(who);
         row.appendChild(el("span", "rank-stage", "ST" + r.stage));
@@ -1671,7 +1838,15 @@
         "STAGE <b>" + STAGES[stageIndex].num + "</b>　SCORE <b>" + score + "</b><br>HIGH SCORE " + best;
       document.getElementById("result-coins").textContent = earned;
       document.getElementById("result-gems").textContent = gemsEarned;
-      document.getElementById("result-rank").textContent = rankNo ? "🏆 MY RANKING #" + rankNo : "";
+      const resultRank = document.getElementById("result-rank");
+      resultRank.textContent = rankNo ? "🏆 MY RANKING #" + rankNo : "";
+      // 世界ランキングに送る（自分の記録を更新したときだけ）
+      if (score > 0) {
+        const myText = resultRank.textContent;
+        submitWorldScore({ score, stage: STAGES[stageIndex].num, name: playerName(), icon: profile.icon })
+          .then((r) => { if (r === "sent") resultRank.textContent = myText + "　🌍 世界ランキングに送ったよ！"; })
+          .catch(() => { resultRank.textContent = myText + "　🌍 送れなかった（オフライン？）"; });
+      }
       showScreen("result");
     }
 
