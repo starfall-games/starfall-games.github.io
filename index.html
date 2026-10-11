@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>STARFALL｜隕石よけブラウザゲーム</title>
   <!-- Google Search Console の所有権の確認用 -->
   <meta name="google-site-verification" content="fp8fxy3Clu0J5MviMHo8o_eWM7LzuKKuW5YYh-bPXdg" />
@@ -68,7 +68,111 @@
     .sub-btn, .tabs button, .item button, #pause-button { letter-spacing: 1px; }
 
     /* ===== ゲーム画面の上にかぶせる画面（ホーム・アイテム・結果） ===== */
-    #stage-wrap { position: relative; display: inline-block; max-width: 100%; }
+    /* ゲーム画面は、スマホでも画面の高さに収まる大きさにする */
+    #stage-wrap {
+      position: relative;
+      display: inline-block;
+      width: min(100%, 400px, calc((100vh - 130px) * 2 / 3));
+      width: min(100%, 400px, calc((100dvh - 130px) * 2 / 3));
+    }
+    #stage-wrap canvas#game { width: 100%; height: auto; display: block; }
+    /* スマホで長押ししても、文字が選ばれたりメニューが出たりしないように */
+    body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; overscroll-behavior: none; }
+    button { touch-action: manipulation; }
+    input { -webkit-user-select: text; user-select: text; }
+    @media (max-width: 600px) {
+      h1.logo { display: none; }
+      #info { font-size: 13px; margin: 8px 0 6px; padding: 0 10px; text-align: center; }
+      #main { padding: 0 8px 24px; }
+      .home-title { font-size: 40px; }
+      .overlay { padding: 14px; gap: 9px; }
+    }
+
+    /* ===== プロフィール・ランキング・実績 ===== */
+    .profile-chip {
+      border: 2px solid rgba(255, 255, 255, 0.25);
+      background: rgba(255, 255, 255, 0.08);
+      color: white;
+      border-radius: 999px;
+      padding: 6px 14px;
+      font: inherit;
+      font-family: 'Chakra Petch', sans-serif;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    #profile-name {
+      width: 100%;
+      max-width: 260px;
+      font: inherit;
+      font-size: 18px;
+      padding: 8px 12px;
+      border-radius: 10px;
+      border: 2px solid #374151;
+      background: #0f172a;
+      color: white;
+      text-align: center;
+    }
+    #icon-grid { display: grid; grid-template-columns: repeat(4, 52px); gap: 8px; }
+    .icon-btn {
+      width: 52px;
+      height: 52px;
+      font-size: 28px;
+      border-radius: 12px;
+      border: 2px solid #374151;
+      background: #111827;
+      cursor: pointer;
+    }
+    .icon-btn.on { border-color: #facc15; background: #422006; }
+    #profile-error { color: #fca5a5; font-size: 13px; min-height: 18px; }
+    .list-box { width: 100%; display: flex; flex-direction: column; gap: 6px; }
+    .rank-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #111827;
+      border-radius: 10px;
+      padding: 8px 10px;
+      font-family: 'Chakra Petch', sans-serif;
+      font-weight: 700;
+    }
+    .rank-row.top { background: #1e1b4b; }
+    .rank-no { width: 34px; text-align: center; }
+    .rank-icon { font-size: 20px; }
+    .rank-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
+    .rank-stage { color: #9ca3af; font-size: 12px; }
+    .rank-score { color: #facc15; font-variant-numeric: tabular-nums; min-width: 56px; text-align: right; }
+    .award {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: #111827;
+      border-radius: 10px;
+      padding: 8px 10px;
+      text-align: left;
+      opacity: 0.5;
+    }
+    .award.done { opacity: 1; border: 1px solid #facc15; }
+    .award-icon { font-size: 26px; width: 34px; text-align: center; }
+    .award-text { flex: 1; font-size: 12px; color: #cbd5e1; }
+    .award-text b { color: white; font-size: 14px; }
+    .award-reward { font-size: 12px; font-weight: bold; color: #facc15; }
+    #rank-screen, #award-screen { justify-content: flex-start; }
+    .toast {
+      position: fixed;
+      left: 50%;
+      top: 16px;
+      transform: translateX(-50%);
+      max-width: 92%;
+      background: #422006;
+      border: 2px solid #facc15;
+      color: #fef3c7;
+      padding: 10px 16px;
+      border-radius: 12px;
+      font-weight: bold;
+      font-size: 14px;
+      z-index: 60;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+    }
     #stage-wrap canvas { display: block; }
     .overlay {
       position: absolute;
@@ -215,6 +319,7 @@
       z-index: 5;
     }
     #shop-button:hover { padding-right: 12px; }
+    #shop-button[hidden] { display: none; }
 
     /* ===== ショップ（右からスライドして出てくる） ===== */
     #shop {
@@ -346,6 +451,7 @@
         <div class="home-en">DODGE · SURVIVE · ASCEND</div>
         <div class="home-title">STARFALL</div>
         <div class="home-sub">スターフォール</div>
+        <button id="profile-chip" class="profile-chip"></button>
         <div class="wallet">
           <span>🪙 <span id="home-coins">0</span></span>
           <span class="gem">💎 <span id="home-gems">0</span></span>
@@ -359,6 +465,10 @@
           <button id="btn-shop" class="sub-btn">🛒 SHOP</button>
           <button id="btn-bag" class="sub-btn">🎒 ITEMS</button>
         </div>
+        <div class="row">
+          <button id="btn-rank" class="sub-btn">🏆 RANKING</button>
+          <button id="btn-award" class="sub-btn">🏅 AWARDS</button>
+        </div>
         <div id="home-equipped" class="equipped"></div>
         <div class="note">PRESS SPACE TO START（スペースキーでもスタート）</div>
       </div>
@@ -371,12 +481,40 @@
         <button id="bag-close" class="sub-btn">← BACK</button>
       </div>
 
+      <!-- プロフィール画面（ニックネームとアイコン） -->
+      <div id="profile" class="overlay">
+        <div class="home-sub">🪪 PROFILE</div>
+        <input id="profile-name" maxlength="10" placeholder="ニックネーム（10文字まで）" autocomplete="off">
+        <div class="note">本名や学校の名前は使わないでね</div>
+        <div id="icon-grid"></div>
+        <div id="profile-error"></div>
+        <button id="profile-save" class="big-btn">SAVE</button>
+        <button id="profile-close" class="sub-btn">← BACK</button>
+      </div>
+
+      <!-- ランキング画面 -->
+      <div id="rank-screen" class="overlay">
+        <div class="home-sub">🏆 MY RANKING</div>
+        <div class="note">このスマホ・パソコンでのベスト10。世界ランキングは準備中だよ</div>
+        <div id="rank-list" class="list-box"></div>
+        <button id="rank-close" class="sub-btn">← BACK</button>
+      </div>
+
+      <!-- 実績画面 -->
+      <div id="award-screen" class="overlay">
+        <div class="home-sub">🏅 AWARDS <span id="award-count" class="note"></span></div>
+        <div class="note">条件をクリアすると、ごほうびがもらえるよ</div>
+        <div id="award-list" class="list-box"></div>
+        <button id="award-close" class="sub-btn">← BACK</button>
+      </div>
+
       <!-- 結果画面 -->
       <div id="result" class="overlay">
         <div class="result-title">GAME OVER</div>
         <div id="result-taunt-en" class="taunt-en"></div>
         <div id="result-taunt-ja" class="taunt-ja"></div>
         <div id="result-record" class="record">🎉 NEW RECORD!</div>
+        <div id="result-rank" class="note"></div>
         <div id="result-stats" class="home-stats"></div>
         <div class="wallet">
           <span>🪙 +<span id="result-coins">0</span></span>
@@ -386,7 +524,8 @@
         <button id="btn-home" class="sub-btn">🏠 HOME</button>
       </div>
     </div>
-    <p>← → キー（スマホは画面タッチ）で動かす／Pキーで一時停止／Sキーで無敵（セットしたとき）<br>
+    <p>← → キー（スマホは画面を指でなぞる）で動かす／Pキーで一時停止／Sキーで無敵（セットしたとき）<br>
+       ステージ5・10・15・20の最後にはボスが登場！⚡エネルギーコアを取ってたおそう<br>
        ハートが全部なくなるとゲームオーバー。♥・+20・💎のアイテムを取ろう！<br>
        5点ごとに 🪙1枚、ステージクリアで 💎1個ゲット！</p>
   </div>
@@ -896,6 +1035,7 @@
     // ===== 操作 =====
     document.addEventListener("keydown", (e) => {
       // スペースや矢印でページがスクロールしたり、ボタンが押されたりしないようにする
+      if (e.target.tagName === "INPUT") return;  // ニックネームの入力中はゲームの操作をしない
       if ([" ", "ArrowLeft", "ArrowRight"].includes(e.key)) e.preventDefault();
       if (e.key === "Escape" && shopOpen) { setShop(false); return; }
       if (shopOpen) return;  // ショップを開いている間はゲームの操作をしない
@@ -906,18 +1046,27 @@
       }
       if (e.key === "s" || e.key === "S") activateShield();
       if (e.key === "d" || e.key === "D") activateSlow();
-      if (e.key === "Escape" && screen === "bag") showScreen("home");
+      if (e.key === "Escape" && ["bag", "profile", "rank", "award"].includes(screen)) showScreen("home");
       if (e.key === "p" || e.key === "P" || e.key === "Escape") togglePause();
     });
     document.addEventListener("keyup", (e) => { keys[e.key] = false; });
 
+    // 指（マウス）を置いた場所から、なぞった分だけ宇宙船が動く
+    let touchStartX = 0, shipStartX = 0;
     canvas.addEventListener("pointerdown", (e) => {
       if (!playing) return;
-      if (paused) resume();
-      touchX = toCanvasX(e);
+      if (paused) { resume(); return; }
+      canvas.setPointerCapture(e.pointerId);
+      touchStartX = toCanvasX(e);
+      shipStartX = player.x;
+      touchX = player.x;
     });
-    canvas.addEventListener("pointermove", (e) => { if (touchX !== null) touchX = toCanvasX(e); });
+    canvas.addEventListener("pointermove", (e) => {
+      if (touchX === null) return;
+      touchX = shipStartX + (toCanvasX(e) - touchStartX) * 1.3;  // 少し大きめに動く
+    });
     canvas.addEventListener("pointerup", () => { touchX = null; });
+    canvas.addEventListener("pointercancel", () => { touchX = null; });
 
     pauseButton.onclick = () => togglePause();
     shieldButton.onclick = () => activateShield();
@@ -928,6 +1077,13 @@
     document.getElementById("btn-shop").onclick = () => setShop(true);
     document.getElementById("btn-bag").onclick = () => showScreen("bag");
     document.getElementById("bag-close").onclick = () => showScreen("home");
+    document.getElementById("profile-chip").onclick = () => showScreen("profile");
+    document.getElementById("profile-save").onclick = () => saveProfile();
+    document.getElementById("profile-close").onclick = () => showScreen("home");
+    document.getElementById("btn-rank").onclick = () => showScreen("rank");
+    document.getElementById("rank-close").onclick = () => showScreen("home");
+    document.getElementById("btn-award").onclick = () => showScreen("award");
+    document.getElementById("award-close").onclick = () => showScreen("home");
 
     // ほかのタブやアプリに切り替えたら、自動で一時停止
     document.addEventListener("visibilitychange", () => { if (document.hidden) pause(); });
@@ -965,8 +1121,16 @@
       document.getElementById("home").classList.toggle("show", name === "home");
       document.getElementById("bag").classList.toggle("show", name === "bag");
       document.getElementById("result").classList.toggle("show", name === "result");
+      document.getElementById("profile").classList.toggle("show", name === "profile");
+      document.getElementById("rank-screen").classList.toggle("show", name === "rank");
+      document.getElementById("award-screen").classList.toggle("show", name === "award");
+      // ゲーム中は右はしのSHOPボタンをかくす（スマホでゲーム画面にかぶらないように）
+      document.getElementById("shop-button").hidden = name === "playing";
       if (name === "home") renderHome();
       if (name === "bag") renderBag();
+      if (name === "profile") renderProfile();
+      if (name === "rank") renderRanking();
+      if (name === "award") renderAwards();
       updateInfo();
     }
 
@@ -976,6 +1140,9 @@
       document.getElementById("home-gems").textContent = gems;
       document.getElementById("home-best").textContent = best;
       document.getElementById("home-stage").textContent = bestStage;
+      document.getElementById("profile-chip").textContent = profile.name
+        ? profile.icon + " " + profile.name + "　✎"
+        : "🪪 ニックネームを登録しよう";
       const set = BOOSTS.filter((b) => equipped[b.id] && (boosts[b.id] || 0) > 0);
       document.getElementById("home-equipped").textContent = set.length
         ? "NEXT GAME：" + set.map((b) => b.icon + b.name).join("・")
@@ -1036,7 +1203,383 @@
       gems += n;
       gemsEarned += n;
       save("gems", gems);
+      totals.gems += n;
+      save("totals", totals);
+      if (totals.gems >= 10) unlock("gem10");
       popup("💎 +" + n, "#67e8f9");
+    }
+
+    // =====================================================================
+    // ===== ボス戦 =====
+    // =====================================================================
+    // ステージ5・10・15・20のゴールに着くと、ボスが出てくる
+    // 流れてくる「⚡エネルギーコア」を取ると、ボスにダメージ。HPを0にしたら勝ち
+    const BOSSES = {
+      5:  { name: "METEOR KING", ja: "メテオ・キング",   hp: 8 },
+      10: { name: "TWIN CANNON", ja: "ツイン・キャノン", hp: 10 },
+      15: { name: "THE EYE",     ja: "ザ・アイ",         hp: 12 },
+      20: { name: "VOID CORE",   ja: "ヴォイド・コア",   hp: 15 },
+    };
+    const BOSS_CORE_EVERY = 150;   // エネルギーコアが流れてくる間かく（150 = 2.5秒）
+    const BOSS_WARN_FRAMES = 150;  // 「WARNING」を出す長さ
+    const BOSS_REWARD_GEMS = 3;    // ボスをたおしたごほうび
+    const BOSS_REWARD_SCORE = 100;
+    const BOSS_Y = 140;            // ボスがいる高さ
+
+    let boss = null;             // 今戦っているボス（いないときは null）
+    let bossDefeatedStage = 0;   // ボスをたおしたステージの番号
+    let bossBanner = 0;          // 「BOSS DEFEATED!」を出す残り時間
+    let bossBannerAllClear = false;
+
+    function startBoss(num) {
+      boss = { num, ...BOSSES[num], maxHp: BOSSES[num].hp, x: W / 2, y: -90, t: 0, flash: 0, dying: 0, warn: BOSS_WARN_FRAMES };
+    }
+
+    // ボスの動きと攻撃
+    function updateBoss(stage) {
+      const b = boss;
+      b.t++;
+      if (b.flash > 0) b.flash--;
+      if (b.warn > 0) {  // 登場中：上からゆっくり降りてくる
+        b.warn--;
+        b.y += (BOSS_Y - b.y) * 0.03;
+        return;
+      }
+      if (b.dying > 0) {  // やられ中：ふるえながら爆発する
+        b.dying--;
+        if (b.dying === 0) defeatBoss();
+        return;
+      }
+      b.y += (BOSS_Y - b.y) * 0.05;
+      b.x = W / 2 + Math.sin(b.t / 90) * 120;
+      const sp = stage.speed;
+      const every = (n) => b.t % Math.round(n) === 0;
+      const toPlayer = () => angleToPlayer(b.x, b.y);
+      const throwRock = (vx, size, speed) => rocks.push({ x: b.x - size / 2, y: b.y + 20, size, vx, look: makeRockLook(), speed });
+
+      if (b.num === 5) {
+        // メテオ・キング：隕石を3つばらまく＋大きな隕石をねらって落とす
+        if (every(55)) for (const vx of [-2, 0, 2]) throwRock(vx, 26, 3 * sp);
+        if (every(130)) {
+          const a = toPlayer();
+          throwRock(Math.cos(a) * 3, 44, Math.sin(a) * 3.2 * sp);
+        }
+      } else if (b.num === 10) {
+        // ツイン・キャノン：7方向の弾＋両はしの大砲からレーザー＋自分の場所に極太ビーム
+        if (every(75)) for (let i = -3; i <= 3; i++) shoot(b.x, b.y + 20, Math.PI / 2 + i * 0.22, 3);
+        if (every(90)) for (const dx of [-70, 70]) lasers.push({ x: b.x + dx - 3, y: b.y + 20, w: 6, h: 40, speed: 9 * sp });
+        if (every(260)) beams.push({ x: Math.max(0, Math.min(W - 60, player.x + player.w / 2 - 30)), w: 60, timer: 0, warning: 70, fire: 30 });
+      } else if (b.num === 15) {
+        // ザ・アイ：うずまきの弾＋ねらった速い弾
+        if (b.t % 300 < 130 && every(7)) shoot(b.x, b.y, b.t * 0.23, 2.6);
+        if (every(95)) shoot(b.x, b.y, toPlayer(), 6.5);
+      } else if (b.num === 20) {
+        // ヴォイド・コア：2重のうずまき＋ブラックホール＋極太ビーム
+        if (every(9)) { shoot(b.x, b.y, b.t * 0.17, 2.6); shoot(b.x, b.y, -b.t * 0.17 + Math.PI, 2.6); }
+        if (every(320) && !enemies.some((e) => e.kind === "blackhole")) {
+          enemies.push({ kind: "blackhole", x: rand(60, W - 60), y: rand(260, 380), t: 0, r: 0, life: 300 });
+        }
+        if (every(200)) beams.push({ x: Math.max(0, Math.min(W - 60, player.x + player.w / 2 - 30)), w: 60, timer: 0, warning: 70, fire: 30 });
+      }
+
+      // エネルギーコアと、たまにハート
+      if (every(BOSS_CORE_EVERY)) items.push({ type: "core", x: rand(30, W - 30), y: -20, t: 0 });
+      if (Math.random() < HEART_ITEM_RATE * 1.5) items.push({ type: "heart", x: rand(20, W - 20), y: -20, t: 0 });
+    }
+
+    // エネルギーコアを取ったとき
+    function hitBoss() {
+      if (!boss || boss.warn > 0 || boss.dying > 0) { addBonus(20); popup("+20", "#facc15"); return; }
+      boss.hp--;
+      boss.flash = 14;
+      popup("⚡ HIT!", "#fde047");
+      if (boss.hp <= 0) {
+        boss.dying = 100;
+        bullets = [];  // ボスがやられたら、弾は消える
+      }
+    }
+
+    function defeatBoss() {
+      const num = boss.num;
+      bossDefeatedStage = num;
+      boss = null;
+      addGems(BOSS_REWARD_GEMS);
+      addBonus(BOSS_REWARD_SCORE);
+      bossBanner = 150;
+      bossBannerAllClear = num === 20;
+      unlock("boss" + num);
+      if (num === 20) unlock("allclear");
+    }
+
+    // ボスの絵
+    function drawBoss(c, b) {
+      c.save();
+      let x = b.x, y = b.y;
+      if (b.dying > 0) { x += rand(-4, 4); y += rand(-4, 4); }
+      c.translate(x, y);
+      if (b.num === 5) {
+        // 大きな岩の王様：怒った目と金の王冠
+        drawRockyRock(c, "#92400e", 0, 0, 55, bossRockLook);
+        c.fillStyle = "white";
+        for (const ex of [-18, 18]) { c.beginPath(); c.ellipse(ex, -4, 10, 8, 0, 0, Math.PI * 2); c.fill(); }
+        c.fillStyle = "#dc2626";
+        const a = angleToPlayer(x, y);
+        for (const ex of [-18, 18]) { c.beginPath(); c.arc(ex + Math.cos(a) * 4, -4 + Math.sin(a) * 3, 4, 0, Math.PI * 2); c.fill(); }
+        c.strokeStyle = "#1c1917"; c.lineWidth = 4;
+        c.beginPath(); c.moveTo(-28, -18); c.lineTo(-8, -10); c.moveTo(28, -18); c.lineTo(8, -10); c.stroke();  // まゆ
+        c.fillStyle = "#facc15";
+        c.beginPath(); c.moveTo(-26, -42); c.lineTo(-20, -66); c.lineTo(-8, -48); c.lineTo(0, -70); c.lineTo(8, -48); c.lineTo(20, -66); c.lineTo(26, -42); c.closePath(); c.fill();
+      } else if (b.num === 10) {
+        // 戦艦：2つの大砲と赤いコア
+        c.fillStyle = "#64748b";
+        c.beginPath(); c.moveTo(-95, -20); c.lineTo(95, -20); c.lineTo(75, 22); c.lineTo(-75, 22); c.closePath(); c.fill();
+        c.fillStyle = "#94a3b8"; c.fillRect(-60, -38, 120, 20);
+        c.fillStyle = "#cbd5e1"; c.fillRect(-40, -46, 30, 10);  // 艦橋
+        for (const dx of [-70, 70]) { c.fillStyle = "#1e293b"; c.fillRect(dx - 9, 10, 18, 26); c.fillStyle = "#f97316"; c.fillRect(dx - 6, 32, 12, 5); }
+        const glow = 0.6 + Math.sin(b.t / 8) * 0.4;
+        c.fillStyle = "rgba(239,68,68," + glow + ")";
+        c.shadowColor = "#ef4444"; c.shadowBlur = 20;
+        c.beginPath(); c.arc(0, 0, 13, 0, Math.PI * 2); c.fill();
+        c.shadowBlur = 0;
+      } else if (b.num === 15) {
+        // 大きな目玉：黒目が自分を追いかける
+        c.shadowColor = "#a855f7"; c.shadowBlur = 30;
+        c.fillStyle = "#f5f3ff";
+        c.beginPath(); c.arc(0, 0, 52, 0, Math.PI * 2); c.fill();
+        c.shadowBlur = 0;
+        c.strokeStyle = "rgba(220,38,38,0.5)"; c.lineWidth = 2;
+        for (let i = 0; i < 6; i++) { const a = i * 1.05; c.beginPath(); c.moveTo(Math.cos(a) * 50, Math.sin(a) * 50); c.lineTo(Math.cos(a + 0.2) * 30, Math.sin(a + 0.2) * 30); c.stroke(); }
+        const a = angleToPlayer(x, y);
+        const ix = Math.cos(a) * 16, iy = Math.sin(a) * 16;
+        c.fillStyle = "#7e22ce"; c.beginPath(); c.arc(ix, iy, 24, 0, Math.PI * 2); c.fill();
+        c.fillStyle = "#0f0a1a"; c.beginPath(); c.arc(ix, iy, 11, 0, Math.PI * 2); c.fill();
+        c.fillStyle = "white"; c.beginPath(); c.arc(ix - 6, iy - 6, 4, 0, Math.PI * 2); c.fill();
+      } else if (b.num === 20) {
+        // 光る輪がまわる、黒い球
+        c.strokeStyle = "rgba(196,181,253,0.8)"; c.lineWidth = 3;
+        for (let i = 0; i < 3; i++) {
+          c.save(); c.rotate(b.t * 0.02 * (i % 2 ? -1 : 1) + i);
+          c.beginPath(); c.ellipse(0, 0, 70, 22, 0, 0, Math.PI * 2); c.stroke();
+          c.restore();
+        }
+        const g = c.createRadialGradient(0, 0, 5, 0, 0, 48);
+        g.addColorStop(0, "#c084fc"); g.addColorStop(0.35, "#3b0764"); g.addColorStop(1, "#020617");
+        c.fillStyle = g;
+        c.beginPath(); c.arc(0, 0, 46, 0, Math.PI * 2); c.fill();
+        c.fillStyle = "rgba(255,255,255," + (0.5 + Math.sin(b.t / 6) * 0.4) + ")";
+        c.beginPath(); c.arc(0, 0, 8, 0, Math.PI * 2); c.fill();
+      }
+      // ダメージを受けたら白く光る
+      if (b.flash > 0) {
+        c.globalAlpha = b.flash / 14 * 0.7;
+        c.fillStyle = "white";
+        c.beginPath(); c.arc(0, 0, 70, 0, Math.PI * 2); c.fill();
+        c.globalAlpha = 1;
+      }
+      c.restore();
+      // やられ中は、あちこちで爆発
+      if (b.dying > 0 && b.dying % 4 === 0) {
+        explosions.push({ x: x + rand(-60, 60), y: y + rand(-40, 40), t: 0 });
+      }
+    }
+    const bossRockLook = makeRockLook();
+    let explosions = [];
+    function drawExplosions(c) {
+      for (const e of explosions) {
+        e.t++;
+        const k = e.t / 24;
+        c.globalAlpha = 1 - k;
+        c.fillStyle = e.t < 8 ? "#fef3c7" : "#f97316";
+        c.beginPath(); c.arc(e.x, e.y, 8 + k * 30, 0, Math.PI * 2); c.fill();
+      }
+      c.globalAlpha = 1;
+      explosions = explosions.filter((e) => e.t < 24);
+    }
+
+    // ボスの体力ゲージと、WARNING・BOSS DEFEATED の表示
+    function drawBossUI(c) {
+      if (boss && boss.warn === 0 && boss.dying === 0) {
+        c.fillStyle = "rgba(0,0,0,0.5)";
+        c.fillRect(60, 50, W - 120, 26);
+        c.fillStyle = "white";
+        c.textAlign = "center";
+        c.font = "700 12px " + UI_FONT;
+        c.fillText(boss.name + "（" + boss.ja + "）", W / 2, 62);
+        c.fillStyle = "rgba(255,255,255,0.2)";
+        c.fillRect(70, 66, W - 140, 6);
+        c.fillStyle = "#ef4444";
+        c.fillRect(70, 66, (W - 140) * boss.hp / boss.maxHp, 6);
+      }
+      if (boss && boss.warn > 0) {
+        const on = Math.floor(boss.warn / 12) % 2 === 0;
+        c.fillStyle = "rgba(127,29,29," + (on ? 0.55 : 0.35) + ")";
+        c.fillRect(0, 230, W, 140);
+        c.textAlign = "center";
+        c.fillStyle = "#fecaca";
+        c.font = "900 44px " + EN_FONT;
+        c.fillText("WARNING", W / 2, 285);
+        c.fillStyle = "white";
+        c.font = "700 16px " + UI_FONT;
+        c.fillText("BOSS APPROACHING：" + boss.name, W / 2, 318);
+        c.font = "14px " + JA_FONT;
+        c.fillText("⚡のエネルギーコアを取って、ボスにぶつけろ！", W / 2, 348);
+      }
+      if (bossBanner > 0) {
+        c.globalAlpha = fade(bossBanner, 150);
+        c.fillStyle = "rgba(0,0,0,0.6)";
+        c.fillRect(0, 230, W, 130);
+        c.textAlign = "center";
+        c.fillStyle = "#facc15";
+        c.font = "900 " + (bossBannerAllClear ? 40 : 34) + "px " + EN_FONT;
+        c.fillText(bossBannerAllClear ? "ALL CLEAR!!" : "BOSS DEFEATED!", W / 2, 290);
+        c.fillStyle = "white";
+        c.font = "700 18px " + UI_FONT;
+        c.fillText("💎 +" + BOSS_REWARD_GEMS + "　SCORE +" + BOSS_REWARD_SCORE, W / 2, 330);
+        c.globalAlpha = 1;
+      }
+    }
+
+    // =====================================================================
+    // ===== プロフィール（ニックネームとアイコン） =====
+    // =====================================================================
+    const ICONS = ["🚀", "👽", "🐱", "🐶", "🦊", "🐼", "🐸", "🤖", "👾", "🌟", "🔥", "🐉", "⚡", "🎮", "🦈", "🐧"];
+    // ニックネームに使えない言葉（悪口など）
+    const NG_WORDS = ["しね", "死ね", "ころす", "殺す", "うざ", "きも", "ばか", "バカ", "あほ", "アホ", "ぶす", "ブス", "fuck", "shit", "kill"];
+    let profile = load("profile", { name: "", icon: "🚀" });
+    let pickedIcon = profile.icon;
+
+    function playerName() { return profile.name || "PLAYER"; }
+
+    function renderProfile() {
+      document.getElementById("profile-name").value = profile.name;
+      pickedIcon = profile.icon;
+      const box = document.getElementById("icon-grid");
+      box.innerHTML = "";
+      for (const icon of ICONS) {
+        const b = button(icon, "icon-btn" + (icon === pickedIcon ? " on" : ""), () => {
+          pickedIcon = icon;
+          for (const o of box.children) o.classList.toggle("on", o === b);
+        });
+        box.appendChild(b);
+      }
+      document.getElementById("profile-error").textContent = "";
+    }
+
+    function saveProfile() {
+      const name = document.getElementById("profile-name").value.trim().slice(0, 10);
+      const error = document.getElementById("profile-error");
+      if (!name) { error.textContent = "ニックネームを入れてね"; return; }
+      const lower = name.toLowerCase();
+      if (NG_WORDS.some((w) => lower.includes(w))) { error.textContent = "その言葉は使えないよ。別のニックネームにしてね"; return; }
+      profile = { name, icon: pickedIcon };
+      save("profile", profile);
+      unlock("profile");
+      showScreen("home");
+    }
+
+    // =====================================================================
+    // ===== 自分のランキング（ベスト10） =====
+    // =====================================================================
+    let ranking = load("ranking", []);  // { score, stage, name, icon, date } のリスト
+
+    // ランキングに入れて、何位になったかを返す（入らなければ 0）
+    function addToRanking(entry) {
+      ranking.push(entry);
+      ranking.sort((a, b) => b.score - a.score);
+      ranking = ranking.slice(0, 10);
+      save("ranking", ranking);
+      return ranking.indexOf(entry) + 1;
+    }
+
+    function renderRanking() {
+      const list = document.getElementById("rank-list");
+      list.innerHTML = "";
+      if (ranking.length === 0) {
+        list.appendChild(el("div", "note", "まだ記録がないよ。プレイしてランキングに名前をのせよう！"));
+        return;
+      }
+      const medals = ["🥇", "🥈", "🥉"];
+      ranking.forEach((r, i) => {
+        const row = el("div", "rank-row" + (i < 3 ? " top" : ""));
+        row.appendChild(el("span", "rank-no", medals[i] || "#" + (i + 1)));
+        row.appendChild(el("span", "rank-icon", r.icon));
+        const who = el("span", "rank-name", r.name);
+        row.appendChild(who);
+        row.appendChild(el("span", "rank-stage", "ST" + r.stage));
+        row.appendChild(el("span", "rank-score", String(r.score)));
+        list.appendChild(row);
+      });
+    }
+
+    // =====================================================================
+    // ===== 実績（バッジ） =====
+    // =====================================================================
+    const ACHIEVEMENTS = [
+      { id: "first",     icon: "🎮", name: "はじめの一歩",        desc: "はじめてプレイする",               coins: 50 },
+      { id: "profile",   icon: "🪪", name: "自己紹介",            desc: "ニックネームとアイコンを登録する", coins: 50 },
+      { id: "plays10",   icon: "🔁", name: "常連さん",            desc: "10回プレイする",                   coins: 200 },
+      { id: "stage5",    icon: "🚩", name: "ステージ5到達",       desc: "ステージ5まで進む",                gems: 1 },
+      { id: "stage10",   icon: "🚩", name: "ステージ10到達",      desc: "ステージ10まで進む",               gems: 2 },
+      { id: "stage15",   icon: "🚩", name: "ステージ15到達",      desc: "ステージ15まで進む",               gems: 3 },
+      { id: "stage20",   icon: "🏁", name: "最終ステージ到達",    desc: "ステージ20まで進む",               gems: 5 },
+      { id: "boss5",     icon: "👑", name: "王様たおし",          desc: "メテオ・キングをたおす",           gems: 2 },
+      { id: "boss10",    icon: "⚓", name: "戦艦ハンター",        desc: "ツイン・キャノンをたおす",         gems: 3 },
+      { id: "boss15",    icon: "👁", name: "にらめっこ名人",      desc: "ザ・アイをたおす",                 gems: 4 },
+      { id: "boss20",    icon: "🌌", name: "宇宙の救世主",        desc: "ヴォイド・コアをたおす",           gems: 5 },
+      { id: "allclear",  icon: "🏆", name: "ALL CLEAR",           desc: "全部のボスをたおして全クリする",   gems: 10 },
+      { id: "score1000", icon: "⭐", name: "スコア1000",          desc: "1回のゲームで1000点",              coins: 200 },
+      { id: "score5000", icon: "🌟", name: "スコア5000",          desc: "1回のゲームで5000点",              coins: 500 },
+      { id: "score10000",icon: "💫", name: "スコア10000",         desc: "1回のゲームで10000点",             gems: 3 },
+      { id: "nohit",     icon: "🛡", name: "ノーダメージ",        desc: "ダメージを受けずにステージをクリア", gems: 1 },
+      { id: "gem10",     icon: "💎", name: "ジェムコレクター",    desc: "ジェムを合計10個集める",           coins: 300 },
+    ];
+    let achieved = load("achieved", {});
+    let totals = load("totals", { plays: 0, gems: 0 });
+    let damagedThisStage = false;  // このステージでダメージを受けたか（ノーダメージの実績用）
+
+    function unlock(id) {
+      if (achieved[id]) return;
+      const a = ACHIEVEMENTS.find((x) => x.id === id);
+      if (!a) return;
+      achieved[id] = true;
+      save("achieved", achieved);
+      let reward = "";
+      if (a.coins) { coins += a.coins; save("coins", coins); reward = "🪙+" + a.coins; }
+      if (a.gems) { gems += a.gems; save("gems", gems); reward = "💎+" + a.gems; }
+      showToast(a.icon + " 実績解除！「" + a.name + "」 " + reward);
+      updateInfo();
+    }
+
+    function checkScoreAchievements() {
+      if (score >= 1000) unlock("score1000");
+      if (score >= 5000) unlock("score5000");
+      if (score >= 10000) unlock("score10000");
+    }
+
+    function renderAwards() {
+      const list = document.getElementById("award-list");
+      list.innerHTML = "";
+      const done = ACHIEVEMENTS.filter((a) => achieved[a.id]).length;
+      document.getElementById("award-count").textContent = done + " / " + ACHIEVEMENTS.length;
+      for (const a of ACHIEVEMENTS) {
+        const row = el("div", "award" + (achieved[a.id] ? " done" : ""));
+        row.appendChild(el("div", "award-icon", achieved[a.id] ? a.icon : "🔒"));
+        const text = el("div", "award-text");
+        text.appendChild(el("b", "", a.name));
+        text.appendChild(el("div", "", a.desc));
+        row.appendChild(text);
+        row.appendChild(el("div", "award-reward", a.coins ? "🪙" + a.coins : "💎" + a.gems));
+        list.appendChild(row);
+      }
+    }
+
+    // 画面の上に、少しの間だけお知らせを出す（実績解除など）
+    function showToast(text) {
+      const box = document.createElement("div");
+      box.className = "toast";
+      box.textContent = text;
+      document.body.appendChild(box);
+      setTimeout(() => box.remove(), 3500);
     }
 
     // ===== ゲームの流れ =====
@@ -1059,6 +1602,15 @@
       slowReady = !!equipped.slow && (boosts.slow || 0) > 0;
       slowTimer = 0;
       gemsEarned = 0;
+      boss = null;
+      bossDefeatedStage = 0;
+      bossBanner = 0;
+      explosions = [];
+      damagedThisStage = false;
+      totals.plays++;
+      save("totals", totals);
+      unlock("first");
+      if (totals.plays >= 10) unlock("plays10");
       rocks = [];
       lasers = [];
       beams = [];
@@ -1106,6 +1658,9 @@
       shieldReady = false;
       slowTimer = 0;
       slowReady = false;
+      boss = null;
+      checkScoreAchievements();
+      const rankNo = score > 0 ? addToRanking({ score, stage: STAGES[stageIndex].num, name: playerName(), icon: profile.icon, date: new Date().toLocaleDateString("ja-JP") }) : 0;
       renderShop();  // コインが増えたので、買えるものが変わるかも
 
       // 結果画面
@@ -1116,6 +1671,7 @@
         "STAGE <b>" + STAGES[stageIndex].num + "</b>　SCORE <b>" + score + "</b><br>HIGH SCORE " + best;
       document.getElementById("result-coins").textContent = earned;
       document.getElementById("result-gems").textContent = gemsEarned;
+      document.getElementById("result-rank").textContent = rankNo ? "🏆 MY RANKING #" + rankNo : "";
       showScreen("result");
     }
 
@@ -1164,15 +1720,16 @@
       if (invincible > 0) invincible--;
       if (shieldTimer > 0) shieldTimer--;
       if (slowTimer > 0) slowTimer--;
-      if (frame % TIME_SCORE_FRAMES === 0) addProgress(1);  // 生き残っているだけでスコアアップ
+      if (bossBanner > 0) bossBanner--;
+      if (frame % TIME_SCORE_FRAMES === 0) { addProgress(1); checkScoreAchievements(); }  // 生き残っているだけでスコアアップ
 
       // 自分を動かす
       if (keys["ArrowLeft"]) player.x -= player.speed;
       if (keys["ArrowRight"]) player.x += player.speed;
       if (touchX !== null) {
-        const center = player.x + player.w / 2;
-        if (touchX < center - 5) player.x -= player.speed;
-        if (touchX > center + 5) player.x += player.speed;
+        // なぞった場所に向かって動く（速すぎないように最大スピードを決める）
+        const diff = touchX - player.x;
+        player.x += Math.max(-player.speed * 1.6, Math.min(player.speed * 1.6, diff));
       }
       // 画面の外に出ないようにする
       player.x = Math.max(0, Math.min(W - player.w, player.x));
@@ -1183,14 +1740,28 @@
       // スロー中は、敵や隕石を2コマに1回だけ動かす（自分はふつうに動ける）
       const slowSkip = slowTimer > 0 && frame % 2 === 0;
       if (!slowSkip) {
-        if (bannerTimer === 0) spawn(stage, level);
+        if (bannerTimer === 0 && !boss && bossBanner === 0) spawn(stage, level);  // ボス戦の間は、ふつうの敵は出ない
+        if (boss) updateBoss(stage);
         moveAll(stage);
       }
 
-      // 次のステージに進むかチェック（進みスコアで判定）
+      // ボスのいるステージは、ゴールに着いたらボス戦
       const next = STAGES[stageIndex + 1];
-      if (next && progress >= next.score) {
+      const goal = next ? next.score : stage.score + STAGE_STEP;
+      if (!boss && BOSSES[stage.num] && bossDefeatedStage !== stage.num && progress >= goal && bannerTimer === 0) {
+        startBoss(stage.num);
+      }
+      // 次のステージに進むかチェック（進みスコアで判定。ボス戦中とボスをたおした直後は進まない）
+      const bossCleared = !BOSSES[stage.num] || bossDefeatedStage === stage.num;
+      if (next && progress >= next.score && !boss && bossCleared && bossBanner === 0) {
+        if (!damagedThisStage) unlock("nohit");
+        damagedThisStage = false;
         stageIndex++;
+        const reached = STAGES[stageIndex].num;
+        if (reached >= 5) unlock("stage5");
+        if (reached >= 10) unlock("stage10");
+        if (reached >= 15) unlock("stage15");
+        if (reached >= 20) unlock("stage20");
         stageFrame = 0;
         bannerTimer = bannerTotal = CLEAR_FRAMES + TAUNT_FRAMES;  // 「STAGE CLEAR!」→ あおり文章の順に表示
         bannerTaunt = STAGES[stageIndex + 1] ? pick(TAUNTS) : FINAL_TAUNT;
@@ -1468,6 +2039,8 @@
           }
         } else if (it.type === "gem") {
           addGems(1);
+        } else if (it.type === "core") {
+          hitBoss();
         } else {
           addBonus(20);
           popup("+20", "#facc15");
@@ -1497,6 +2070,7 @@
     // ダメージを受けた：ハートが1つへって、少しの間無敵になる
     function damage() {
       hearts--;
+      damagedThisStage = true;
       invincible = INVINCIBLE_FRAMES;
       popup("♥ -1", "#ef4444");
       if (hearts <= 0) gameOver();
@@ -2127,6 +2701,19 @@
       if (it.type === "heart") {
         c.shadowColor = "#f472b6";
         drawHeart(c, it.x, it.y + bob, 20, "#f472b6", "white");
+      } else if (it.type === "core") {
+        // ⚡エネルギーコア：黄色く光る玉
+        const y = it.y + bob;
+        c.shadowColor = "#fde047";
+        c.shadowBlur = 24 + Math.sin(it.t / 4) * 10;
+        const g = c.createRadialGradient(it.x - 4, y - 4, 2, it.x, y, 17);
+        g.addColorStop(0, "#fffbeb"); g.addColorStop(0.5, "#fde047"); g.addColorStop(1, "#f59e0b");
+        c.fillStyle = g;
+        c.beginPath(); c.arc(it.x, y, 17, 0, Math.PI * 2); c.fill();
+        c.shadowBlur = 0;
+        c.font = "18px sans-serif";
+        c.textAlign = "center";
+        c.fillText("⚡", it.x, y + 6);
       } else if (it.type === "gem") {
         // 水色にキラキラ光る宝石
         const y = it.y + bob;
@@ -2284,6 +2871,10 @@
       }
       ctx.shadowBlur = 0;
 
+      // ボスと爆発
+      if (boss) drawBoss(ctx, boss);
+      drawExplosions(ctx);
+
       // 自分（無敵の間はチカチカ点滅する）
       const blinkOff = invincible > 0 && Math.floor(invincible / 6) % 2 === 0;
       if (!blinkOff) {
@@ -2353,6 +2944,7 @@
         ctx.fillText("FINAL STAGE", 10, 42);
       }
       drawHearts(ctx, W - 18, 20, 18);
+      drawBossUI(ctx);
 
       // ステージの表示
       //   ゲームスタート：「STAGE 1」だけ
