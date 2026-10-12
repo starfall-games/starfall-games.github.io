@@ -1321,6 +1321,7 @@
       }
       if (b.dying > 0) {  // やられ中：ふるえながら爆発する
         b.dying--;
+        if (b.dying % 4 === 0) explosions.push({ x: b.x + rand(-60, 60), y: b.y + rand(-40, 40), t: 0 });
         if (b.dying === 0) defeatBoss();
         return;
       }
@@ -1453,23 +1454,23 @@
         c.globalAlpha = 1;
       }
       c.restore();
-      // やられ中は、あちこちで爆発
-      if (b.dying > 0 && b.dying % 4 === 0) {
-        explosions.push({ x: x + rand(-60, 60), y: y + rand(-40, 40), t: 0 });
-      }
+
     }
     const bossRockLook = makeRockLook();
     let explosions = [];
+    // 爆発を1コマ進める（tick の中で呼ぶ）
+    function ageExplosions() {
+      for (const e of explosions) e.t++;
+      explosions = explosions.filter((e) => e.t < 24);
+    }
     function drawExplosions(c) {
       for (const e of explosions) {
-        e.t++;
         const k = e.t / 24;
         c.globalAlpha = 1 - k;
         c.fillStyle = e.t < 8 ? "#fef3c7" : "#f97316";
         c.beginPath(); c.arc(e.x, e.y, 8 + k * 30, 0, Math.PI * 2); c.fill();
       }
       c.globalAlpha = 1;
-      explosions = explosions.filter((e) => e.t < 24);
     }
 
     // ボスの体力ゲージと、WARNING・BOSS DEFEATED の表示
@@ -2127,8 +2128,29 @@
       popups.push({ text, color, x: player.x + player.w / 2, y: player.y - 10, t: 0 });
     }
 
-    // 毎フレーム（1秒に約60回）呼ばれる
-    function update() {
+    // ゲームの速さを、画面の書きかえ回数に関係なく、本当の時間で「1秒に60コマ」にする
+    // （低電力モードで1秒に30回しか書きかえられないスマホでも、120回書きかえるスマホでも、同じ速さになる）
+    const TICK_MS = 1000 / 60;  // 1コマの時間（約16.7ミリ秒）
+    let lastTime = performance.now();
+    let timeBank = 0;           // まだ進めていない時間のたくわえ
+
+    // 画面を書きかえるたびに呼ばれる
+    function update(now = performance.now()) {
+      // 前回からたった時間をたくわえる（タブを切りかえて長く止まっていたときは、0.25秒までにする）
+      timeBank += Math.min(250, now - lastTime);
+      lastTime = now;
+      // たまった時間の分だけ、1コマずつ進める
+      while (timeBank >= TICK_MS) {
+        tick();
+        timeBank -= TICK_MS;
+      }
+      updateMusic();
+      draw();
+      requestAnimationFrame(update);  // 次の書きかえを予約
+    }
+
+    // ゲームを1コマ（1/60秒）進める
+    function tick() {
       const stage = STAGES[stageIndex];
       const frozen = paused || shopOpen;  // 止まっているかどうか
 
@@ -2144,10 +2166,7 @@
         if (countdown > 0) countdown--;  // カウントダウン中はまだ動かない
         else step(stage);
       }
-
-      updateMusic();
-      draw();
-      requestAnimationFrame(update);  // 次のフレームを予約
+      ageExplosions();
     }
 
     // ゲームを1コマ進める
@@ -3822,7 +3841,7 @@
     renderShop();
     updateSoundButtons();
     showScreen("home");  // 最初はホーム画面
-    update();  // ゲーム開始！
+    requestAnimationFrame(update);  // ゲーム開始！
   </script>
 </body>
 </html>
