@@ -72,8 +72,8 @@
     #stage-wrap {
       position: relative;
       display: inline-block;
-      width: min(100%, 400px, calc((100vh - 130px) * 2 / 3));
-      width: min(100%, 400px, calc((100dvh - 130px) * 2 / 3));
+      width: min(100%, 400px, calc((100vh - 180px) * 2 / 3));
+      width: min(100%, 400px, calc((100dvh - 180px) * 2 / 3));
     }
     #stage-wrap canvas#game { width: 100%; height: auto; display: block; }
     /* スマホで長押ししても、文字が選ばれたりメニューが出たりしないように */
@@ -295,40 +295,30 @@
     .record { font-family: Orbitron, sans-serif; font-weight: 900; color: #facc15; font-size: 20px; }
 
     /* ゲーム中の「無敵」ボタン */
-    #slow-button {
-      position: absolute;
-      right: 92px;
-      bottom: 12px;
-      display: none;
-      width: 72px;
-      height: 72px;
-      border-radius: 50%;
-      border: 3px solid white;
-      background: radial-gradient(circle at 35% 30%, #a5f3fc, #0891b2);
-      color: #083344;
-      font-weight: bold;
-      font-size: 13px;
-      line-height: 1.2;
-      cursor: pointer;
-      box-shadow: 0 0 16px rgba(34, 211, 238, 0.8);
+    /* ゲーム中に使うアイテムのバー（ゲーム画面のすぐ下。画面にはかぶらない） */
+    #item-bar {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      min-height: 40px;
+      margin-top: 6px;
     }
-    #shield-button {
-      position: absolute;
-      right: 12px;
-      bottom: 12px;
+    #item-bar[hidden] { display: none; }
+    #item-bar button {
       display: none;
-      width: 72px;
-      height: 72px;
-      border-radius: 50%;
-      border: 3px solid white;
-      background: radial-gradient(circle at 35% 30%, #fde68a, #f59e0b);
-      color: #451a03;
-      font-weight: bold;
-      font-size: 13px;
-      line-height: 1.2;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 999px;
+      border: 2px solid white;
+      font-family: 'Chakra Petch', sans-serif;
+      font-weight: 700;
+      font-size: 14px;
       cursor: pointer;
-      box-shadow: 0 0 16px rgba(250, 204, 21, 0.8);
     }
+    #item-bar button small { opacity: 0.7; font-size: 11px; }
+    #shield-button { background: linear-gradient(#fde68a, #f59e0b); color: #451a03; box-shadow: 0 0 12px rgba(250, 204, 21, 0.6); }
+    #slow-button { background: linear-gradient(#a5f3fc, #0891b2); color: #083344; box-shadow: 0 0 12px rgba(34, 211, 238, 0.6); }
     canvas#game {
       background: #0b1020;
       border: 2px solid #374151;
@@ -486,8 +476,6 @@
   <div id="main">
     <div id="stage-wrap">
       <canvas id="game" width="400" height="600"></canvas>
-      <button id="shield-button">🛡<br>SHIELD<br><small>S key</small></button>
-      <button id="slow-button">⏱<br>SLOW<br><small>D key</small></button>
 
       <!-- ホーム画面 -->
       <div id="home" class="overlay show">
@@ -582,6 +570,11 @@
         <button id="btn-retry" class="big-btn">↻ RETRY</button>
         <button id="btn-home" class="sub-btn">🏠 HOME</button>
       </div>
+    </div>
+    <!-- ゲーム中に使うアイテム（ゲーム画面の下） -->
+    <div id="item-bar" hidden>
+      <button id="shield-button">🛡 SHIELD <small>S</small></button>
+      <button id="slow-button">⏱ SLOW <small>D</small></button>
     </div>
     <p>← → キー（スマホは画面を指でなぞる）で動かす／Pキーで一時停止／Sキーで無敵（セットしたとき）<br>
        ステージ5・10・15・20の最後にはボスが登場！⚡エネルギーコアを取ってたおそう<br>
@@ -1054,6 +1047,7 @@
     let shieldTimer = 0;   // 無敵10秒の残り時間
     let slowReady = false; // 「スロー5秒」を持ってきていて、まだ使っていないか
     let slowTimer = 0;     // スローの残り時間
+    let usingActiveItems = false;  // このゲームで、無敵・スローのアイテムを持ってきたか
     let using = {};        // このゲームで使っている「start」アイテム 例：{ magnet: true }
     let startStageIndex = 0;  // このゲームを始めたステージ（スタートダッシュなら 2）
     let screen = "home";   // 今の画面："home"（ホーム） / "bag"（アイテム） / "playing"（ゲーム中） / "result"（結果）
@@ -1084,8 +1078,10 @@
       document.getElementById("shop-coins").textContent = coins;
       document.getElementById("gems").textContent = gems;
       document.getElementById("shop-gems").textContent = gems;
-      shieldButton.style.display = playing && shieldReady ? "block" : "none";
-      slowButton.style.display = playing && slowReady ? "block" : "none";
+      shieldButton.style.display = playing && shieldReady ? "flex" : "none";
+      slowButton.style.display = playing && slowReady ? "flex" : "none";
+      // バーは、アイテムを持ってきたゲームの間だけ出す（途中で出たり消えたりして画面がずれないように）
+      document.getElementById("item-bar").hidden = !(playing && (usingActiveItems || shieldReady || slowReady));
       pauseButton.textContent = paused ? "▶ RESUME" : "⏸ PAUSE";
       pauseButton.disabled = !playing;
     }
@@ -2032,6 +2028,7 @@
       shieldTimer = 0;
       slowReady = !!equipped.slow && (boosts.slow || 0) > 0;
       slowTimer = 0;
+      usingActiveItems = shieldReady || slowReady;  // このゲームでアイテムのバーを出すか
       gemsEarned = 0;
       boss = null;
       bossDefeatedStage = 0;
