@@ -404,14 +404,17 @@ function allPlays(hand) {
   for (let k = 1; k <= J.length; k++) out.push(mkPlay(J.slice(0, k), "set", 16));
   // 階段：同じマークで3枚以上つづく。足りないところはジョーカーでうめる
   if (R.stairs) {
-    for (const s of SUITS) for (let lo = 3; lo <= 13; lo++) for (let len = 3; lo + len - 1 <= 15; len++) {
+    const has = {};
+    N.forEach(c => { has[c.s + c.r] = c; });
+    for (const s of SUITS) for (let lo = 3; lo <= 13; lo++) {
       const cards = []; let need = 0;
-      for (let r = lo; r < lo + len; r++) {
-        const c = N.find(c => c.s === s && c.r === r);
+      for (let r = lo; r <= 15; r++) {
+        const c = has[s + r];
         if (c) cards.push(c); else need++;
+        if (need > J.length) break;           // ジョーカーが足りなくなったら、それより長い階段も作れない
+        const len = r - lo + 1;
+        if (len >= 3 && need < len) out.push(mkPlay([...cards, ...J.slice(0, need)], "stair", lo, r, s));
       }
-      if (need > J.length || need === len) continue;
-      out.push(mkPlay([...cards, ...J.slice(0, need)], "stair", lo, lo + len - 1, s));
     }
   }
   return out;
@@ -451,7 +454,7 @@ function isFoul(p) {
 function isFoulCard(c) { return R.foul && (c.j || (R.eight && c.r === 8) || c.r === (G.rev ? 3 : 15)); }
 
 // ---------- CPU の考え方 ----------
-// lv: 0=よわい 1=ふつう 2=つよい。 noPass=true ならパスしない（ヒント用）
+// lv: 0=よわい 1=ふつう 2=つよい 3=最強。 noPass=true ならパスしない（ヒント用）
 function cpuChoose(p, lv, noPass) {
   const hand = G.players[p].hand;
   const plays = legal(hand);
@@ -460,11 +463,18 @@ function cpuChoose(p, lv, noPass) {
   // これを出せば上がれる（反則にならない）なら出す
   const fin = plays.find(q => q.n === hand.length && !isFoul(q));
   if (fin) return fin;
-
+  const best = scorePlays(p, lv, plays)[0].q;
+  // 手札が多いうちは、強いカードを温存してパスすることもある
+  if (!noPass && G.field && lv > 0 && hand.length > 4 && strength(best) >= 13 && Math.random() < (lv === 2 ? 0.5 : 0.3)) return null;
+  return best;
+}
+// 出し方それぞれに点数をつける（小さいほど出したい）
+function scorePlays(p, lv, plays) {
+  const hand = G.players[p].hand;
   const cnt = {};
   hand.forEach(c => { if (!c.j) cnt[c.r] = (cnt[c.r] || 0) + 1; });
   const avg = hand.reduce((a, c) => a + (c.j ? 15 : val(c.r)), 0) / hand.length;
-  let best = null, bs = 1e9;
+  const out = [];
   for (const q of plays) {
     let s = q.jokerOnly ? 30 : strength(q);                                    // 弱いカードから出したい
     if (q.type === "set" && !q.jokerOnly && q.cards.filter(c => !c.j).length < cnt[q.rank]) s += lv ? 6 : 0; // ペアをくずさない
@@ -477,11 +487,9 @@ function cpuChoose(p, lv, noPass) {
     if (lv && (R.give7 && covers(q, 7) || R.toss10 && covers(q, 10))) s -= 2;  // カードを減らせる数字はお得
     if (lv === 0) s += Math.random() * 8;
     if (lv === 2 && hand.length - q.n <= 2 && !G.field) s -= strength(q) * 0.5; // 終盤は強いのを先に出して親をとる
-    if (s < bs) { bs = s; best = q; }
+    out.push({ q, s });
   }
-  // 手札が多いうちは、強いカードを温存してパスすることもある
-  if (!noPass && G.field && lv > 0 && hand.length > 4 && strength(best) >= 13 && Math.random() < (lv === 2 ? 0.5 : 0.3)) return null;
-  return best;
+  return out.sort((a, b) => a.s - b.s);
 }
 // CPU がカードをえらぶ（交換・7渡し・10捨て）／数字をえらぶ（Qボンバー）
 function cpuPick(p, kind, n) {
@@ -492,6 +500,149 @@ function cpuPick(p, kind, n) {
     return order.find(r => !have.has(r)) || order[0];
   }
   return hand.slice().sort((a, b) => sortKey(a) - sortKey(b)).slice(0, n);   // 一番弱いカード
+}
+
+// =====================================================
+//  最強CPU：モンテカルロ法
+//  1. 出せる手の候補をいくつか選ぶ
+//  2. 見えない相手の手札を、まだ出ていないカードから想像して配る
+//  3. それぞれの候補を出したあと、最後まで高速でシミュレーションする
+//  4. 平均の点がいちばん高かった手を出す
+//  ※ 相手の本当の手札は見ない（覚えているのは、出たカードと自分がわたしたカードだけ）
+// =====================================================
+const THINK_MS = +(QS.get("think") || 300);    // 1手に考える時間（ミリ秒）
+const SEAT_LV = QS.get("lv") ? QS.get("lv").split(",").map(Number) : null;   // テスト用：席ごとの強さ
+function cpuLevel(p) { return SEAT_LV ? SEAT_LV[p] : S.cpu; }
+function cpuMove(p) { const lv = cpuLevel(p); return lv >= 3 ? cpuThink(p) : cpuChoose(p, lv); }
+
+function allCardIds() {
+  const ids = [];
+  for (const s of SUITS) for (let r = 3; r <= 15; r++) ids.push(s + r);
+  for (let i = 0; i < R.jokers; i++) ids.push("X" + i);
+  return ids;
+}
+function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const k = Math.floor(Math.random() * (i + 1)); [a[i], a[k]] = [a[k], a[i]]; } return a; }
+// p から見た「相手の手札」を想像して作る
+function imagine(p) {
+  const mine = new Set(G.players[p].hand.map(c => c.id));
+  const unseen = allCardIds().filter(id => !mine.has(id) && !G.played.has(id));
+  const need = G.players.map((q, i) => i === p || q.done ? 0 : q.hand.length);
+  if (unseen.length !== need.reduce((a, b) => a + b, 0)) return null;   // 数が合わないときは考えない
+  const hands = [[], [], [], []], rest = [], know = G.know[p];
+  for (const id of unseen) {
+    const to = know[id];   // 自分がわたしたカードは、わたした相手が持っているはず
+    if (to !== undefined && to !== p && hands[to].length < need[to]) hands[to].push(idCard(id)); else rest.push(idCard(id));
+  }
+  shuffle(rest);
+  let k = 0;
+  for (let i = 0; i < 4; i++) while (hands[i].length < need[i]) hands[i].push(rest[k++]);
+  hands[p] = G.players[p].hand;
+  return hands;
+}
+// シミュレーション用のゲームの状態（画面には出さない）
+function simState(hands) {
+  return {
+    players: G.players.map((q, i) => ({ hand: hands[i].slice(), done: q.done })),
+    cur: G.cur, field: G.field, pile: [], bubble: ["", "", "", ""], passed: G.passed.slice(),
+    finished: G.finished.slice(), bottom: G.bottom.slice(), rev: G.rev, back: G.back, lock: G.lock, numLock: G.numLock,
+    dir: G.dir, prevRanks: G.prevRanks, played: new Set(), know: [{}, {}, {}, {}],
+  };
+}
+// シミュレーションの中でカードを出す（doPlay と同じルール、画面と音なし）
+function simPlay(p, play) {
+  const pl = G.players[p];
+  pl.hand = pl.hand.filter(c => !play.cards.includes(c));
+  const prev = G.field && G.field.play;
+  if (R.lock && prev && !G.lock && !play.hasJoker && !prev.hasJoker && play.suits.join() === prev.suits.join()) G.lock = play.suits;
+  if (R.numlock && prev && !G.numLock && prev.type === "set" && play.type === "set" && !prev.jokerOnly && !play.jokerOnly && strength(play) === strength(prev) + 1) G.numLock = true;
+  G.field = { play, by: p };
+  let cut = false, skip = 0;
+  if (R.spe3 && prev && prev.n === 1 && prev.jokerOnly && isSpe3(play)) cut = true;
+  if (isSand(play) || is99(play)) cut = true;
+  if (R.rev && isRevPlay(play)) G.rev = !G.rev;
+  if (R.back && covers(play, 11)) G.back = true;
+  if (R.eight && covers(play, 8)) cut = true;
+  if (R.rev9 && covers(play, 9) && !cut) G.dir = -G.dir;
+  if (R.skip5 && covers(play, 5) && !cut) skip = countOf(play, 5);
+  if (pl.hand.length === 0) simFinish(p, play);
+  else {
+    if (R.give7 && covers(play, 7)) {
+      const to = nextActive(p), n = Math.min(countOf(play, 7), pl.hand.length);
+      if (to >= 0 && n > 0) { const cs = cpuPick(p, "give", n); pl.hand = pl.hand.filter(c => !cs.includes(c)); G.players[to].hand = G.players[to].hand.concat(cs); }
+    }
+    if (R.toss10 && covers(play, 10) && pl.hand.length) {
+      const cs = cpuPick(p, "toss", Math.min(countOf(play, 10), pl.hand.length)); pl.hand = pl.hand.filter(c => !cs.includes(c));
+    }
+    if (R.qbomb && covers(play, 12) && pl.hand.length) {
+      for (let t = Math.min(countOf(play, 12), 3); t > 0; t--) { const r = cpuPick(p, "bomb", 1); G.players.forEach(q => { q.hand = q.hand.filter(c => c.j || c.r !== r); }); }
+    }
+    for (const i of [p, 0, 1, 2, 3]) if (!G.players[i].done && G.players[i].hand.length === 0) simFinish(i, null);
+  }
+  if (cut) { clearField(); G.cur = p; for (let g = 0; g < 4 && G.players[G.cur].done; g++) G.cur = (G.cur + G.dir + 4) % 4; }
+  else { advance(); for (let k = 0; k < skip && G.field; k++) advance(); }
+}
+function simPass(p) { G.passed[p] = true; advance(); }
+function simFinish(p, play) {
+  G.players[p].done = true;
+  if (isFoul(play)) { G.bottom.push(p); return; }
+  G.finished.push(p);
+  if (R.miyako && G.prevRanks && G.finished.length === 1) {
+    const d = G.prevRanks[0];
+    if (d !== p && !G.players[d].done) { G.players[d].done = true; G.players[d].hand = []; G.bottom.push(d); }
+  }
+}
+// p は何位になったか（0=大富豪 … 3=大貧民）
+function placeOf(p) {
+  let i = G.finished.indexOf(p); if (i >= 0) return i;
+  i = G.bottom.indexOf(p); if (i >= 0) return 3 - i;
+  return Math.min(3, G.finished.length);
+}
+// 候補 cand（null ならパス）を出したあと、最後までシミュレーションして点を返す
+function rollout(p, cand, hands) {
+  G = simState(hands);
+  if (cand) simPlay(p, cand); else simPass(p);
+  for (let step = 0; step < 300; step++) {
+    if (G.players[p].done || G.players.filter(q => !q.done).length <= 1) break;
+    const q = G.cur, mv = cpuChoose(q, q === p ? 2 : 1);
+    if (mv) simPlay(q, mv); else simPass(q);
+  }
+  return POINTS[placeOf(p)];
+}
+function cpuThink(p) {
+  const real = G, hand = real.players[p].hand;
+  const plays = legal(hand);
+  if (!plays.length) return null;
+  const fin = plays.find(q => q.n === hand.length && !isFoul(q));
+  if (fin) return fin;
+  if (!real.played) return cpuChoose(p, 2);
+  // 候補：ふつうの考え方で点のよい順に、ちがう種類の手を8つまで ＋ パス
+  const seen = new Set(), cands = [];
+  for (const { q } of scorePlays(p, 2, plays)) {
+    const key = [q.type, q.rank, q.high, q.n, q.hasJoker].join();
+    if (seen.has(key)) continue;
+    seen.add(key); cands.push(q);
+    if (cands.length >= 8) break;
+  }
+  if (real.field) cands.push(null);
+  if (cands.length === 1) return cands[0];
+  const sum = cands.map(() => 0);
+  let rounds = 0;
+  const t0 = performance.now();
+  try {
+    while ((performance.now() - t0 < THINK_MS || rounds < 6) && rounds < 500) {
+      const hands = imagine(p);
+      if (!hands) break;
+      // 同じ「想像した手札」で全部の候補をためす（くらべるのが公平になる）
+      for (let i = 0; i < cands.length; i++) { G = real; sum[i] += rollout(p, cands[i], hands); }
+      G = real;
+      rounds++;
+    }
+  } finally { G = real; }
+  if (!rounds) return cpuChoose(p, 2);
+  let bi = 0;
+  for (let i = 1; i < cands.length; i++) if (sum[i] > sum[bi] + 1e-9) bi = i;
+  if (window.__thinkLog) window.__thinkLog.push({ rounds, n: cands.length });
+  return cands[bi];
 }
 
 // ---------- 音（Web Audio で作る） ----------
@@ -706,7 +857,8 @@ async function playRound(tk) {
   G.players.forEach(p => { p.hand = []; p.done = false; });
   deck.forEach((c, i) => G.players[i % 4].hand.push(c));
   Object.assign(G, { rev: false, back: false, lock: null, numLock: false, field: null, pile: [], passed: [false, false, false, false],
-    bubble: ["", "", "", ""], note: ["", "", "", ""], finished: [], bottom: [], sel: new Set(), got: new Set(), dir: 1, choice: null, res: null });
+    bubble: ["", "", "", ""], note: ["", "", "", ""], finished: [], bottom: [], sel: new Set(), got: new Set(), dir: 1, choice: null, res: null,
+    played: new Set(), know: [{}, {}, {}, {}] });   // played=もう出たカード、know[p]=p がだれにわたしたか
   G.players.forEach(p => sortHand(p.hand));
 
   // 2ラウンド目からはカード交換
@@ -739,8 +891,8 @@ async function playRound(tk) {
         const ids = new Set(a.ids);
         return legal(hand).find(q => q.n === ids.size && q.cards.every(c => ids.has(c.id)));
       });
-      if (play === LEFT) { await delay(0.5); if (tk !== token) return; play = cpuChoose(p, S.cpu); }
-    } else { await delay(); if (tk !== token) return; play = cpuChoose(p, S.cpu); }   // 待っているあいだにホームにもどったら止める
+      if (play === LEFT) { await delay(0.5); if (tk !== token) return; play = cpuMove(p); }
+    } else { await delay(); if (tk !== token) return; play = cpuMove(p); }   // 待っているあいだにホームにもどったら止める
     if (tk !== token || play === "quit") return;
     if (play) await doPlay(p, play, tk); else doPass(p);
     if (tk !== token) return;
@@ -754,6 +906,7 @@ async function playRound(tk) {
 async function doPlay(p, play, tk) {
   const pl = G.players[p];
   pl.hand = pl.hand.filter(c => !play.cards.includes(c));
+  play.cards.forEach(c => G.played.add(c.id));
   G.note = ["", "", "", ""];
   const prev = G.field && G.field.play;
   const ev = [];
@@ -797,7 +950,7 @@ async function doPlay(p, play, tk) {
         if (tk !== token || cards === "quit") return;
         pl.hand = pl.hand.filter(c => !cards.includes(c));
         G.players[to].hand.push(...cards); sortHand(G.players[to].hand);
-        cards.forEach(c => G.got.add(c.id));
+        cards.forEach(c => { G.got.add(c.id); G.know[p][c.id] = to; });
         G.note[to] = `${pl.name}から ${cards.map(cardName).join(" ")} をもらった`;
         G.note[p] = `${G.players[to].name}に ${cards.map(cardName).join(" ")} をわたした`;
         msg(`${pl.name}が ${G.players[to].name}に ${n}枚わたした`);
@@ -810,6 +963,7 @@ async function doPlay(p, play, tk) {
       const cards = await choose(p, "toss", n, `捨てるカードを${n}枚えらんでね`, tk);
       if (tk !== token || cards === "quit") return;
       pl.hand = pl.hand.filter(c => !cards.includes(c));
+      cards.forEach(c => G.played.add(c.id));
       msg(`${pl.name}が ${cards.map(cardName).join(" ")} を捨てた`);
     }
     // Qボンバー：数字を言って、全員がその数字を捨てる
@@ -819,7 +973,7 @@ async function doPlay(p, play, tk) {
         const r = await choose(p, "bomb", 1, `ボンバーする数字をえらんでね${times > 1 ? `（${t + 1}/${times}）` : ""}`, tk);
         if (tk !== token || r === "quit") return;
         let total = 0;
-        G.players.forEach(q => { const before = q.hand.length; q.hand = q.hand.filter(c => c.j || c.r !== r); total += before - q.hand.length; });
+        G.players.forEach(q => { q.hand.forEach(c => { if (!c.j && c.r === r) G.played.add(c.id); }); const before = q.hand.length; q.hand = q.hand.filter(c => c.j || c.r !== r); total += before - q.hand.length; });
         fx(`Qボンバー！ 「${label(r)}」`, "bomb");
         msg(`${pl.name}が「${label(r)}」をボンバー！ 全員で${total}枚捨てた`);
         render(); await delay(1.2);
@@ -901,6 +1055,7 @@ async function finishPlayer(p, play) {
         const tk = token;
         render(); await delay(1);
         if (tk !== token) return;
+        dp.hand.forEach(c => G.played.add(c.id));
         dp.done = true; dp.hand = []; G.bottom.push(d); G.bubble[d] = "都落ち…";
         fx("都落ち！", "bad");
         msg(`${dp.name}は1番になれなかったので都落ち（大貧民）`);
@@ -919,7 +1074,7 @@ function endRound(tk) {
   // 下剋上：前の大貧民が1位なら、順位がひっくり返る
   let geko = false;
   if (R.geko && G.prevRanks && ranks[0] === G.prevRanks[3]) { ranks = ranks.slice().reverse(); geko = true; fx("下剋上！！", "rev"); }
-  ranks.forEach((p, k) => { G.players[p].title = k; G.players[p].score += POINTS[k]; });
+  ranks.forEach((p, k) => { G.players[p].title = k; G.players[p].score += POINTS[k]; if (AUTO) { TEST.pts[p] += POINTS[k]; TEST.places[p][k]++; } });
   G.prevRanks = ranks;
   G.phase = "result";
   const last = G.round >= R.rounds;
@@ -997,7 +1152,7 @@ async function exchange(tk) {
   const give = (from, to, cards) => {
     P[from].hand = P[from].hand.filter(c => !cards.includes(c));
     P[to].hand.push(...cards); sortHand(P[to].hand);
-    cards.forEach(c => G.got.add(c.id));
+    cards.forEach(c => { G.got.add(c.id); G.know[from][c.id] = to; });
   };
   // 大貧民→大富豪に2枚、貧民→富豪に1枚（一番強いカード）
   const g1 = strongest(P[dh].hand, 2), g2 = strongest(P[h].hand, 1);
@@ -1520,7 +1675,7 @@ function renderHome() {
   $("settings").innerHTML = `
     <h3>ゲーム</h3>
     <div class="opt"><div>ラウンド数</div>${seg("rounds", ["3", "5", "10"], [3, 5, 10])}</div>
-    <div class="opt"><div>CPUの強さ</div>${seg("cpu", ["よわい", "ふつう", "つよい"], [0, 1, 2])}</div>
+    <div class="opt"><div>CPUの強さ</div>${seg("cpu", ["よわい", "ふつう", "つよい", "最強"], [0, 1, 2, 3])}</div>
     <div class="opt"><div>スピード</div>${seg("speed", ["ゆっくり", "ふつう", "はやい"], [0, 1, 2])}</div>
     <div class="opt"><div>ジョーカー</div>${seg("jokers", ["1枚", "2枚"], [1, 2])}</div>
     <h3 style="margin-top:12px">ローカルルール</h3>
@@ -1573,7 +1728,7 @@ window.addEventListener("pagehide", () => { if (NET.room) leaveOnline(); });
 renderHome();
 
 // ---------- テスト用（?auto=数字）：CPUどうしで何ゲームも遊んでエラーがないか見る ----------
-const TEST = { games: 0, rounds: 0, firsts: [0, 0, 0, 0], errors: [] };
+const TEST = { games: 0, rounds: 0, firsts: [0, 0, 0, 0], pts: [0, 0, 0, 0], places: [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]], errors: [] };
 window.__dfg = { TEST, get G() { return G; }, NET, findRule, norm };
 function autoDone(order) {
   TEST.games++; TEST.rounds += G.round; TEST.firsts[order[0]]++;
