@@ -1,0 +1,1584 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>大富豪</title>
+<meta name="description" content="CPU や友だちと遊べる大富豪。8切り・革命・11バックなどのローカルルールを自由に選べる、オンライン対戦もできるトランプゲーム。">
+<style>
+  /* ===== 色やサイズをまとめて決めておく ===== */
+  :root {
+    --bg1: #0b5d3b; --bg2: #063d27;      /* テーブルの緑 */
+    --gold: #ffd54a; --ink: #fff;
+    --cw: clamp(40px, 10.5vw, 62px);     /* カードの横はば */
+    --ch: calc(var(--cw) * 1.45);        /* カードの高さ */
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: radial-gradient(ellipse at center, var(--bg1), var(--bg2));
+    color: var(--ink); font-family: "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+    overflow: hidden; user-select: none; -webkit-user-select: none;
+  }
+  button {
+    font: inherit; border: none; border-radius: 12px; padding: 10px 16px;
+    background: #fff; color: #063d27; font-weight: 700; cursor: pointer;
+    box-shadow: 0 3px 0 rgba(0,0,0,.35);
+  }
+  button:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(0,0,0,.35); }
+  button:disabled { opacity: .35; cursor: default; }
+  input { font: inherit; font-size: 16px; padding: 8px 10px; border-radius: 10px; border: none; min-width: 0; user-select: text; -webkit-user-select: text; }
+  .screen { position: absolute; inset: 0; display: none; }
+  .screen.show { display: flex; }
+  .err { color: #ff8a80; font-size: 13px; min-height: 18px; text-align: center; }
+
+  /* ===== ホーム画面 ===== */
+  #home { flex-direction: column; align-items: center; gap: 14px; padding: 24px 16px; overflow-y: auto; }
+  #home > :first-child { margin-top: auto; }
+  #home > :last-child { margin-bottom: auto; }
+  #home h1 { font-size: clamp(44px, 14vw, 80px); margin: 0; letter-spacing: .1em; color: var(--gold);
+    text-shadow: 0 4px 0 #8a5a00, 0 8px 18px rgba(0,0,0,.5); }
+  #home .deco { display: flex; gap: 6px; margin-bottom: 4px; }
+  #home .deco .card { transform: rotate(var(--rot)); }
+  #home .big { font-size: 22px; padding: 14px 40px; background: var(--gold); color: #5a3a00; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; align-items: center; }
+  #stats { font-size: 13px; opacity: .85; text-align: center; }
+  #settings { background: rgba(0,0,0,.3); border-radius: 14px; padding: 12px; width: min(440px, 100%); display: none; flex: none; }
+  #settings.show { display: block; }
+  #settings h3 { margin: 4px 0 8px; font-size: 15px; color: var(--gold); }
+  .opt { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,.1); font-size: 14px; }
+  .opt small { display: block; opacity: .7; font-size: 11px; }
+  .seg button { padding: 6px 10px; font-size: 13px; background: rgba(255,255,255,.2); color: #fff; box-shadow: none; }
+  .seg button.on { background: var(--gold); color: #5a3a00; }
+  .tog { width: 52px; flex: none; padding: 6px 0; font-size: 13px; background: rgba(255,255,255,.2); color: #fff; box-shadow: none; }
+  .tog.on { background: var(--gold); color: #5a3a00; }
+  /* ルールを名前で追加 */
+  .addrule { display: flex; gap: 6px; margin-top: 6px; }
+  .addrule input { flex: 1; }
+  #ruleAns { font-size: 13px; margin: 8px 0 4px; line-height: 1.5; min-height: 18px; }
+  #ruleAns button { padding: 4px 10px; font-size: 13px; margin-left: 4px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+  .chip { background: var(--gold); color: #5a3a00; border-radius: 99px; padding: 4px 6px 4px 10px; font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 4px; }
+  .chip button { padding: 0 6px; font-size: 12px; background: rgba(0,0,0,.15); color: #5a3a00; box-shadow: none; border-radius: 99px; }
+  .dict { font-size: 12px; opacity: .85; line-height: 1.6; }
+  .dict b { color: var(--gold); }
+
+  /* ===== カード ===== */
+  .card {
+    width: var(--cw); height: var(--ch); border-radius: calc(var(--cw) * .12);
+    background: linear-gradient(160deg, #fff, #eee); color: #111; position: relative; flex: none;
+    box-shadow: 0 2px 4px rgba(0,0,0,.4); border: 1px solid #bbb;
+    transition: transform .15s, margin .2s, opacity .2s;
+  }
+  .card.red { color: #d0102a; }
+  .card .r { position: absolute; left: 7%; top: 3%; font-weight: 800; font-size: calc(var(--cw) * .32); line-height: 1; }
+  .card .s { position: absolute; left: 8%; top: 26%; font-size: calc(var(--cw) * .26); line-height: 1; }
+  .card .m { position: absolute; right: 8%; bottom: 6%; font-size: calc(var(--cw) * .5); line-height: 1; }
+  .card.joker { background: linear-gradient(160deg, #fff6c8, #ffd0f0); color: #7a1fa2; }
+  .card.joker .r { font-size: calc(var(--cw) * .17); letter-spacing: -.02em; }
+  .card.joker .m { font-size: calc(var(--cw) * .55); }
+  .card.mini { --cw: 22px; border-width: 1px; }
+
+  /* ===== ゲーム画面 ===== */
+  #game { flex-direction: column; max-width: 720px; margin: 0 auto; padding: 8px 8px calc(8px + env(safe-area-inset-bottom)); gap: 6px; }
+  #topbar { display: flex; align-items: center; gap: 6px; font-size: 13px; min-height: 30px; }
+  #topbar .round { font-weight: 700; }
+  #badges { display: flex; gap: 4px; flex: 1; flex-wrap: wrap; }
+  .badge { padding: 2px 8px; border-radius: 99px; font-size: 12px; font-weight: 700; }
+  .badge.rev { background: #e53935; } .badge.back { background: #8e24aa; } .badge.lock { background: #1e88e5; }
+  .badge.dir { background: #00897b; } .badge.net { background: #f57c00; }
+  #topbar button { padding: 4px 10px; font-size: 12px; }
+
+  #seats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .seat { background: rgba(0,0,0,.28); border-radius: 12px; padding: 6px; text-align: center; position: relative; border: 2px solid transparent; min-height: 92px; }
+  .seat.turn { border-color: var(--gold); box-shadow: 0 0 12px var(--gold); }
+  .seat.done { opacity: .6; }
+  .seat .av { font-size: 26px; line-height: 1.1; }
+  .seat .nm { font-size: 13px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .seat .cnt { font-size: 12px; opacity: .9; }
+  .seat .who { position: absolute; top: 4px; right: 6px; font-size: 10px; opacity: .8; }
+  .title { display: inline-block; font-size: 11px; padding: 1px 6px; border-radius: 99px; background: rgba(255,255,255,.2); margin-top: 2px; }
+  .t0 { background: #ffb300; color: #3a2600; } .t1 { background: #cfd8dc; color: #222; }
+  .t2 { background: #8d6e63; } .t3 { background: #455a64; }
+  .bubble { margin-top: 4px; min-height: 34px; display: flex; justify-content: center; align-items: center; gap: 2px; font-size: 13px; font-weight: 700; flex-wrap: wrap; }
+  .bubble .pass { background: #fff; color: #555; border-radius: 99px; padding: 2px 10px; }
+
+  #field { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; min-height: 120px; }
+  #pile { position: relative; height: calc(var(--ch) * 1.25); width: 100%; }
+  .play { position: absolute; left: 50%; top: 50%; display: flex; gap: 3px; transform: translate(-50%, -50%); }
+  .play.old { opacity: .45; filter: grayscale(.4); }
+  .play.new { animation: drop .25s ease-out; }
+  @keyframes drop { from { transform: translate(-50%, -90%) scale(1.2); opacity: 0; } }
+  #fieldInfo { font-size: 13px; opacity: .9; min-height: 18px; text-align: center; }
+  #flash { position: absolute; left: 50%; top: 45%; transform: translate(-50%, -50%); font-size: clamp(30px, 10vw, 56px); font-weight: 900;
+    color: var(--gold); text-shadow: 0 3px 0 #000, 0 0 20px #000; white-space: nowrap; pointer-events: none; opacity: 0; z-index: 5; }
+  #flash.go { animation: flash 1.1s ease-out; }
+  @keyframes flash { 0% { opacity: 0; transform: translate(-50%, -50%) scale(.4); } 15% { opacity: 1; transform: translate(-50%, -50%) scale(1.15); }
+    30% { transform: translate(-50%, -50%) scale(1); } 80% { opacity: 1; } 100% { opacity: 0; } }
+
+  #me { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 14px; padding: 4px; border-radius: 10px; border: 2px solid transparent; flex-wrap: wrap; }
+  #me.turn { border-color: var(--gold); box-shadow: 0 0 12px var(--gold); }
+  #msg { text-align: center; font-size: 14px; min-height: 20px; color: #fff59d; }
+  #pick { display: none; flex-wrap: wrap; gap: 4px; justify-content: center; }
+  #pick.show { display: flex; }
+  #pick button { padding: 6px 0; width: 40px; font-size: 15px; }
+  #hand { display: flex; justify-content: center; padding-top: 14px; min-height: calc(var(--ch) + 16px); }
+  #hand .card { cursor: pointer; }
+  #hand .card.sel { z-index: 2; transform: translateY(-14px); box-shadow: 0 0 0 3px var(--gold), 0 6px 10px rgba(0,0,0,.5); }
+  #hand .card.dim { filter: brightness(.55); }
+  #hand .card.got::after { content: "NEW"; position: absolute; top: -10px; left: 50%; transform: translateX(-50%); font-size: 9px;
+    background: #e53935; color: #fff; padding: 1px 4px; border-radius: 4px; }
+  #btns { display: flex; gap: 8px; justify-content: center; }
+  #btns button { flex: 1; max-width: 160px; font-size: 17px; padding: 12px 0; }
+  #bPlay { background: var(--gold); color: #5a3a00; }
+
+  /* ===== 小窓（結果・ルール・オンライン） ===== */
+  .overlay { position: absolute; inset: 0; background: rgba(0,0,0,.6); display: none; align-items: center; justify-content: center; z-index: 10; padding: 16px; }
+  .overlay.show { display: flex; }
+  .panel { background: #0f4a31; border: 2px solid var(--gold); border-radius: 16px; padding: 16px; width: min(440px, 100%); max-height: 100%; overflow-y: auto; }
+  .panel h2 { margin: 0 0 10px; text-align: center; color: var(--gold); }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  td, th { padding: 6px 4px; text-align: center; border-bottom: 1px solid rgba(255,255,255,.15); }
+  tr.mine td { background: rgba(255,213,74,.15); }
+  .note { font-size: 12px; opacity: .8; text-align: center; margin: 6px 0; }
+  .help p { font-size: 14px; line-height: 1.6; margin: 6px 0; }
+  .help b { color: var(--gold); }
+  .lbl { font-size: 13px; opacity: .85; margin: 10px 0 4px; }
+  .avs { display: flex; flex-wrap: wrap; gap: 4px; }
+  .avs button { font-size: 22px; padding: 4px 6px; background: rgba(255,255,255,.15); box-shadow: none; }
+  .avs button.on { background: var(--gold); }
+  .code { font-size: 44px; font-weight: 900; letter-spacing: .2em; text-align: center; color: var(--gold); }
+  .members { margin: 8px 0; }
+  .members div { padding: 6px 8px; border-radius: 8px; background: rgba(0,0,0,.25); margin: 4px 0; font-size: 14px; }
+</style>
+</head>
+<body>
+
+<!-- ===== ホーム画面 ===== -->
+<div id="home" class="screen show">
+  <div class="deco" id="deco"></div>
+  <h1>大富豪</h1>
+  <button class="big" id="bStart">▶ CPUとあそぶ</button>
+  <button class="big" id="bOnline" style="background:#fff;color:#063d27">🌐 オンライン対戦</button>
+  <div class="row">
+    <button id="bRules">📖 ルール</button>
+    <button id="bSet">⚙️ ローカルルール</button>
+    <button id="bSe">🔊 SE</button>
+  </div>
+  <div id="settings"></div>
+  <div id="stats"></div>
+</div>
+
+<!-- ===== ゲーム画面 ===== -->
+<div id="game" class="screen">
+  <div id="topbar">
+    <span class="round" id="roundTxt"></span>
+    <div id="badges"></div>
+    <button id="bNow">📜</button>
+    <button id="bHome">🏠</button>
+  </div>
+  <div id="seats"></div>
+  <div id="field">
+    <div id="pile"></div>
+    <div id="fieldInfo"></div>
+    <div id="flash"></div>
+  </div>
+  <div id="msg"></div>
+  <div id="pick"></div>
+  <div id="me"></div>
+  <div id="hand"></div>
+  <div id="btns">
+    <button id="bHint">💡 ヒント</button>
+    <button id="bPass">パス</button>
+    <button id="bPlay">出す</button>
+  </div>
+</div>
+
+<!-- ===== 結果 ===== -->
+<div id="result" class="overlay"><div class="panel" id="resultBody"></div></div>
+
+<!-- ===== いまのルール（ゲーム中） ===== -->
+<div id="nowRules" class="overlay"><div class="panel">
+  <h2>📜 このゲームのルール</h2>
+  <div id="nowBody" class="help"></div>
+  <div class="row" style="margin-top:10px"><button id="bNowClose">とじる</button></div>
+</div></div>
+
+<!-- ===== オンライン ===== -->
+<div id="online" class="overlay"><div class="panel">
+  <h2>🌐 オンライン対戦</h2>
+  <div id="onSetup">
+    <div class="lbl">ニックネーム（本名は入れないでね・8文字まで）</div>
+    <input id="onName" maxlength="8" style="width:100%">
+    <div class="lbl">アイコン</div>
+    <div class="avs" id="onAvs"></div>
+    <div class="row" style="margin-top:14px"><button id="onRandom" style="background:var(--gold);color:#5a3a00;font-size:18px">🎲 だれかと対戦（ランダムマッチ）</button></div>
+    <div class="note" id="onLock" style="color:var(--gold);font-size:13px"></div>
+    <p class="note">知らない人とも遊べるよ。チャットはないので、ニックネームとアイコンだけが見える。標準ルール・3ラウンド。</p>
+    <div class="lbl" style="text-align:center;margin-top:14px">👫 友だちと遊ぶ</div>
+    <div class="row"><button id="onCreate">🏠 部屋を作る</button></div>
+    <div class="row" style="margin-top:6px"><input id="onCode" inputmode="numeric" maxlength="4" placeholder="4けたの番号" style="width:140px"><button id="onJoin">入る</button></div>
+    <p class="note">友だちの部屋は、部屋を作った人のローカルルールで遊ぶよ。4人に足りない席は CPU が入る。</p>
+  </div>
+  <div id="onWait"></div>
+  <div class="err" id="onErr"></div>
+  <div class="row"><button id="onBack">もどる</button></div>
+</div></div>
+
+<!-- ===== ルール説明 ===== -->
+<div id="rules" class="overlay"><div class="panel">
+  <h2>📖 大富豪のルール</h2>
+  <div class="help">
+    <p><b>目的</b>：手札を早くなくした人の勝ち！ あがった順に 大富豪→富豪→貧民→大貧民 になるよ。</p>
+    <p><b>強さ</b>：3 &lt; 4 &lt; … &lt; K &lt; A &lt; 2 &lt; ジョーカー</p>
+    <p><b>出し方</b>：場に出ているカードと<b>同じ枚数</b>で、<b>もっと強い</b>カードを出す。1枚なら1枚、ペア（2枚）ならペア。出せない・出したくないときは「パス」。</p>
+    <p>みんながパスしたら場が流れて、最後に出した人が好きなカードから出せる。</p>
+    <p><b>ジョーカー</b>：1枚で出すと最強。ペアなどに混ぜると、どの数字の代わりにもなる。</p>
+    <p><b>カード交換</b>：2ラウンド目から、大貧民は一番強いカード2枚を大富豪に、貧民は1枚を富豪にわたす。大富豪・富豪はいらないカードを返す。</p>
+    <p><b>点数</b>：大富豪3点・富豪2点・貧民1点・大貧民0点。合計点が一番の人が優勝！</p>
+    <p><b>ローカルルール</b>：⚙️ ローカルルールでオン・オフできる。<b>ルールの名前を入力して追加</b>もできるよ。くわしくは下の一覧を見てね。</p>
+    <div id="rulesDict" class="dict"></div>
+  </div>
+  <div class="row" style="margin-top:10px"><button id="bRulesClose">とじる</button></div>
+</div></div>
+
+<script>
+// =====================================================
+//  大富豪  — CPU と、またはオンラインで友だちと遊ぶトランプゲーム
+// =====================================================
+
+// ---------- ローカルルールの辞書 ----------
+// base:true = ⚙️ にスイッチがあるルール。ないものは「名前を入力して追加」で使う
+// al = 別の呼び方（入力された名前とくらべる）
+const RULES = [
+  { id: "stairs", base: true, name: "階段", al: ["かいだん", "シークエンス", "シーケンス", "階段出し", "連番"], desc: "同じマークで3枚以上つづく数字（例：♥4 5 6）をまとめて出せる" },
+  { id: "eight", base: true, name: "8切り", al: ["八切り", "8流し", "はちきり", "8ぎり", "エイト切り"], desc: "8を出すと場が流れて、もう一度自分から出せる" },
+  { id: "rev", base: true, name: "革命", al: ["かくめい", "階段革命", "4枚革命"], desc: "同じ数字4枚（または階段5枚以上）で強さが逆になる" },
+  { id: "back", base: true, name: "11バック", al: ["Jバック", "イレブンバック", "ジャックバック", "11ばっく"], desc: "Jを出すと、場が流れるまで強さが逆になる" },
+  { id: "lock", base: true, name: "しばり", al: ["縛り", "マークしばり", "スートしばり", "柄しばり", "マーク縛り"], desc: "同じマークが2回続くと、場が流れるまでそのマークしか出せない" },
+  { id: "spe3", base: true, name: "スペ3返し", al: ["スペ3", "スペード3", "スペサン", "スペ3がえし", "スペードの3"], desc: "1枚のジョーカーには ♠3 で勝てる（場が流れる）" },
+  { id: "miyako", base: true, name: "都落ち", al: ["みやこおち", "都おち"], desc: "前のラウンドの大富豪が1番にあがれないと、いきなり大貧民" },
+  { id: "foul", base: true, name: "反則上がり", al: ["反則あがり", "禁止上がり", "禁止あがり", "2あがり禁止", "ジョーカーあがり禁止", "8あがり禁止", "あがり禁止"], desc: "最後の1手がジョーカー・8・2（革命中は3）だと大貧民" },
+  { id: "skip5", name: "5スキップ", al: ["5飛び", "5とばし", "5飛ばし", "5スキ", "ごスキップ", "5とび"], desc: "5を出すと、出した枚数の人数だけ次の人をとばす" },
+  { id: "give7", name: "7渡し", al: ["ななわたし", "7わたし", "7渡", "しちわたし", "7あげ"], desc: "7を出すと、出した枚数まで好きなカードを次の人にわたせる" },
+  { id: "rev9", name: "9リバース", al: ["9リバ", "きゅうリバース", "9回し", "9返し", "リバース"], desc: "9を出すと、順番の回る向きが逆になる" },
+  { id: "toss10", name: "10捨て", al: ["10すて", "じゅうすて", "10捨", "とおすて", "10ステ"], desc: "10を出すと、出した枚数まで好きなカードを捨てられる" },
+  { id: "qbomb", name: "Qボンバー", al: ["クイーンボンバー", "Qボム", "12ボンバー", "ボンバー", "クイーンボム"], desc: "Qを出すと数字を1つ言って、全員がその数字のカードを捨てる" },
+  { id: "sand", name: "砂嵐", al: ["すなあらし", "333", "3の3枚", "3が3枚"], desc: "3を3枚出すと、どんな3枚組にも勝って場が流れる" },
+  { id: "q99", name: "救急車", al: ["きゅうきゅうしゃ", "99車", "99", "9の2枚", "9ペア"], desc: "9を2枚出すと、どんなペアにも勝って場が流れる" },
+  { id: "numlock", name: "階段しばり", al: ["数字しばり", "数しばり", "すうじしばり", "連番しばり", "数字縛り", "階段縛り"], desc: "1つ上の数字が続けて出たら、場が流れるまで次も1つ上しか出せない" },
+  { id: "geko", name: "下剋上", al: ["げこくじょう", "下克上"], desc: "大貧民が1番にあがると、全員の順位がひっくり返る" },
+  { id: "jk2", name: "ジョーカー2枚", al: ["ジョーカー2", "ジョーカーふたつ", "ジョーカー2まい", "joker2枚"], desc: "ジョーカーを2枚入れる", special: "jokers" },
+];
+const RULE_BY = Object.fromEntries(RULES.map(r => [r.id, r]));
+
+// ---------- 設定（ブラウザに保存） ----------
+const DEF = {
+  rounds: 5, cpu: 1, speed: 1, jokers: 1, se: true, name: "", av: "😎",
+  stairs: true, eight: true, rev: true, back: true, lock: true, spe3: true, miyako: true, foul: true,
+  skip5: false, give7: false, rev9: false, toss10: false, qbomb: false, sand: false, q99: false, numlock: false, geko: false,
+};
+let S = Object.assign({}, DEF);
+try { Object.assign(S, JSON.parse(localStorage.getItem("daifugo-settings") || "{}")); } catch (e) {}
+function saveS() { try { localStorage.setItem("daifugo-settings", JSON.stringify(S)); } catch (e) {} }
+
+let ST = { games: 0, wins: 0, rounds: 0, daifugo: 0 };   // 成績
+try { Object.assign(ST, JSON.parse(localStorage.getItem("daifugo-stats") || "{}")); } catch (e) {}
+function saveST() { try { localStorage.setItem("daifugo-stats", JSON.stringify(ST)); } catch (e) {} }
+
+const QS = new URLSearchParams(location.search);
+// テスト用：?auto=数字 で、あなたの番も CPU が自動で遊ぶ
+const AUTO = QS.get("auto");
+
+// いま使うルール（オフラインは自分の設定、オンラインは部屋を作った人の設定）
+let R = null;
+function rulesFromS() {
+  const r = { rounds: S.rounds, jokers: S.jokers };
+  RULES.forEach(x => { if (!x.special) r[x.id] = !!S[x.id]; });
+  return r;
+}
+function activeRuleNames(r) {
+  return RULES.filter(x => x.special ? r.jokers === 2 : r[x.id]).map(x => x.name);
+}
+
+// ---------- 入力された名前からルールをさがす ----------
+// ひらがな／カタカナ、全角／半角、漢数字、言い方のちがいをそろえてからくらべる
+function norm(s) {
+  s = String(s).normalize("NFKC").toLowerCase();
+  s = s.replace(/[ァ-ヶ]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0x60));     // カタカナ→ひらがな
+  s = s.replace(/[\s・「」『』()（）ー〜~!?、。,.\-_]/g, "");
+  s = s.replace(/十一/g, "11").replace(/十/g, "10");
+  "一二三四五六七八九".split("").forEach((k, i) => { s = s.split(k).join(String(i + 1)); });
+  s = s.replace(/いれぶん|じゃっく/g, "j").replace(/くいん/g, "q");
+  s = s.replace(/飛ばし|飛び|とばし|とび/g, "すきっぷ");
+  s = s.replace(/渡し/g, "わたし").replace(/捨て/g, "すて").replace(/縛り/g, "しばり").replace(/がえし|返し/g, "かえし")
+       .replace(/切り|ぎり/g, "きり").replace(/上がり/g, "あがり").replace(/落ち/g, "おち").replace(/克/g, "剋").replace(/枚/g, "まい");
+  return s;
+}
+function lev(a, b) {   // 2つの言葉が何文字ちがうか（レーベンシュタイン距離）
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++)
+    d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  return d[a.length][b.length];
+}
+function findRule(text) {
+  const n = norm(text);
+  if (!n) return null;
+  let best = null, bs = 99;
+  for (const r of RULES) for (const k of [r.name, ...r.al].map(norm)) {
+    if (k === n) return { rule: r, exact: true };
+    let s = 99;
+    if (n.length >= 2 && (k.includes(n) || n.includes(k))) s = Math.abs(k.length - n.length) * 0.5;
+    const dist = lev(n, k);
+    if (dist <= Math.max(1, Math.floor(k.length / 3))) s = Math.min(s, 1 + dist);
+    if (s < bs) { bs = s; best = r; }
+  }
+  return best && bs < 4 ? { rule: best, exact: false } : null;
+}
+
+// ---------- トランプの基本 ----------
+const SUITS = ["s", "h", "d", "c"];
+const SUIT_CH = { s: "♠", h: "♥", d: "♦", c: "♣", x: "" };
+const TITLES = ["大富豪", "富豪", "貧民", "大貧民"];
+const POINTS = [3, 2, 1, 0];
+// r は 3〜15（11=J 12=Q 13=K 14=A 15=2）、16=ジョーカー
+function label(r) { return { 11: "J", 12: "Q", 13: "K", 14: "A", 15: "2" }[r] || String(r); }
+function cardName(c) { return c.j ? "JOKER" : SUIT_CH[c.s] + label(c.r); }
+function idCard(id) { return id[0] === "X" ? { id, s: "x", r: 16, j: true } : { id, s: id[0], r: +id.slice(1), j: false }; }
+
+function makeDeck() {
+  const d = [];
+  for (const s of SUITS) for (let r = 3; r <= 15; r++) d.push({ id: s + r, s, r, j: false });
+  for (let i = 0; i < R.jokers; i++) d.push({ id: "X" + i, s: "x", r: 16, j: true });
+  // シャッフル（フィッシャー–イェーツという混ぜ方）
+  for (let i = d.length - 1; i > 0; i--) { const k = Math.floor(Math.random() * (i + 1)); [d[i], d[k]] = [d[k], d[i]]; }
+  return d;
+}
+
+// ---------- ゲームの状態 ----------
+let G = null;
+let ME = 0;                    // 自分の席の番号（オフラインとホストは0）
+let token = 0;                 // ホームに戻ったら古いゲームを止めるための番号
+let LM = "";                   // 自分だけに見せる一言（「その組み合わせは出せないよ」など）
+const LEFT = { left: true };   // オンラインで友だちが抜けたしるし
+
+// いま強さが逆になっているか（革命と11バックが両方なら元どおり）
+function reversed() { return G.rev !== G.back; }
+// 数字の強さ（大きいほど強い）
+function val(r) { if (r === 16) return 100; return reversed() ? 18 - r : r; }
+// 手札の並べ方：弱い順に左から（革命中は逆）
+function sortKey(c) { if (c.j) return 1000; return (G.rev ? 18 - c.r : c.r) * 4 + SUITS.indexOf(c.s); }
+function sortHand(h) { h.sort((a, b) => sortKey(a) - sortKey(b)); }
+
+// ---------- 出せる組み合わせを全部さがす ----------
+// play = { cards, type:'set'(同じ数字) | 'stair'(階段), n:枚数, rank:数字(階段は一番下), high:階段の一番上, suits, hasJoker, jokerOnly }
+function mkPlay(cards, type, rank, high, suit) {
+  const nj = cards.filter(c => !c.j);
+  return {
+    cards, type, n: cards.length, rank, high: high ?? rank,
+    hasJoker: nj.length < cards.length, jokerOnly: nj.length === 0,
+    suits: type === "stair" ? [suit] : [...new Set(nj.map(c => c.s))].sort(),
+  };
+}
+function allPlays(hand) {
+  const J = hand.filter(c => c.j), N = hand.filter(c => !c.j), out = [];
+  const by = {};
+  N.forEach(c => (by[c.r] = by[c.r] || []).push(c));
+  // 同じ数字の組（1枚・ペア・3枚・4枚…）。ジョーカーを混ぜてもOK
+  for (const r in by) {
+    const cs = by[r];
+    for (let m = 1; m < (1 << cs.length); m++) {
+      const sub = cs.filter((_, i) => (m >> i) & 1);
+      for (let k = 0; k <= J.length; k++) out.push(mkPlay([...sub, ...J.slice(0, k)], "set", +r));
+    }
+  }
+  // ジョーカーだけ
+  for (let k = 1; k <= J.length; k++) out.push(mkPlay(J.slice(0, k), "set", 16));
+  // 階段：同じマークで3枚以上つづく。足りないところはジョーカーでうめる
+  if (R.stairs) {
+    for (const s of SUITS) for (let lo = 3; lo <= 13; lo++) for (let len = 3; lo + len - 1 <= 15; len++) {
+      const cards = []; let need = 0;
+      for (let r = lo; r < lo + len; r++) {
+        const c = N.find(c => c.s === s && c.r === r);
+        if (c) cards.push(c); else need++;
+      }
+      if (need > J.length || need === len) continue;
+      out.push(mkPlay([...cards, ...J.slice(0, need)], "stair", lo, lo + len - 1, s));
+    }
+  }
+  return out;
+}
+// その出し方の強さ
+function strength(p) {
+  if (p.type === "stair") return reversed() ? 18 - p.high : p.rank;
+  return p.jokerOnly ? 100 : val(p.rank);
+}
+// その数字が入っているか（8切り・11バックなどの判定）
+function covers(p, r) { return p.type === "stair" ? (p.rank <= r && r <= p.high) : (!p.jokerOnly && p.rank === r); }
+// その数字が何枚ぶん入っているか（5スキップ・7渡しなど）
+function countOf(p, r) { return !covers(p, r) ? 0 : p.type === "stair" ? 1 : p.n; }
+function isSpe3(p) { return p.n === 1 && !p.hasJoker && p.cards[0].id === "s3"; }
+function isRevPlay(p) { return (p.type === "set" && p.n >= 4) || (p.type === "stair" && p.n >= 5); }
+function isSand(p) { return R.sand && p.type === "set" && p.n === 3 && p.rank === 3; }
+function is99(p) { return R.q99 && p.type === "set" && p.n === 2 && p.rank === 9; }
+
+// 場のカードに出せるか
+function canBeat(p) {
+  const f = G.field && G.field.play;
+  if (!f) return true;
+  if ((f.type === "stair") !== (p.type === "stair") || f.n !== p.n) return false;
+  if (G.lock && !p.suits.every(s => G.lock.includes(s))) return false;
+  if (isSand(p) || is99(p)) return true;                       // 砂嵐・救急車はどんな組にも勝つ
+  if (R.spe3 && f.n === 1 && f.jokerOnly && isSpe3(p)) return true;
+  if (G.numLock && strength(p) !== strength(f) + 1) return false;  // 階段しばり：1つ上だけ
+  return strength(p) > strength(f);
+}
+function legal(hand) { return allPlays(hand).filter(canBeat); }
+
+// 反則上がりになるカード・出し方
+function isFoul(p) {
+  if (!R.foul || !p) return false;
+  return p.hasJoker || (R.eight && covers(p, 8)) || covers(p, G.rev ? 3 : 15) || (R.spe3 && isSpe3(p) && G.field && G.field.play.jokerOnly);
+}
+function isFoulCard(c) { return R.foul && (c.j || (R.eight && c.r === 8) || c.r === (G.rev ? 3 : 15)); }
+
+// ---------- CPU の考え方 ----------
+// lv: 0=よわい 1=ふつう 2=つよい。 noPass=true ならパスしない（ヒント用）
+function cpuChoose(p, lv, noPass) {
+  const hand = G.players[p].hand;
+  const plays = legal(hand);
+  if (!plays.length) return null;
+  if (lv === 0 && G.field && !noPass && Math.random() < 0.25) return null;
+  // これを出せば上がれる（反則にならない）なら出す
+  const fin = plays.find(q => q.n === hand.length && !isFoul(q));
+  if (fin) return fin;
+
+  const cnt = {};
+  hand.forEach(c => { if (!c.j) cnt[c.r] = (cnt[c.r] || 0) + 1; });
+  const avg = hand.reduce((a, c) => a + (c.j ? 15 : val(c.r)), 0) / hand.length;
+  let best = null, bs = 1e9;
+  for (const q of plays) {
+    let s = q.jokerOnly ? 30 : strength(q);                                    // 弱いカードから出したい
+    if (q.type === "set" && !q.jokerOnly && q.cards.filter(c => !c.j).length < cnt[q.rank]) s += lv ? 6 : 0; // ペアをくずさない
+    if (q.hasJoker && !q.jokerOnly) s += lv ? 10 : 0;                         // ジョーカーはとっておく
+    if (q.type === "stair") s -= lv ? q.n * 1.2 : 0;                           // 階段はまとめて出せてお得
+    if (!G.field) s -= q.n * (lv ? 2 : 0.5);                                  // 親のときはたくさん出す
+    const rest = hand.filter(c => !q.cards.includes(c));
+    if (rest.length && rest.every(isFoulCard)) s += 50;                        // 反則上がりしか残らないのはダメ
+    if (R.rev && isRevPlay(q)) s += avg < 9 ? -25 : 25;                        // 手札が弱いなら革命！
+    if (lv && (R.give7 && covers(q, 7) || R.toss10 && covers(q, 10))) s -= 2;  // カードを減らせる数字はお得
+    if (lv === 0) s += Math.random() * 8;
+    if (lv === 2 && hand.length - q.n <= 2 && !G.field) s -= strength(q) * 0.5; // 終盤は強いのを先に出して親をとる
+    if (s < bs) { bs = s; best = q; }
+  }
+  // 手札が多いうちは、強いカードを温存してパスすることもある
+  if (!noPass && G.field && lv > 0 && hand.length > 4 && strength(best) >= 13 && Math.random() < (lv === 2 ? 0.5 : 0.3)) return null;
+  return best;
+}
+// CPU がカードをえらぶ（交換・7渡し・10捨て）／数字をえらぶ（Qボンバー）
+function cpuPick(p, kind, n) {
+  const hand = G.players[p].hand;
+  if (kind === "bomb") {   // 自分が持っていない強い数字をえらぶ（相手のカードを減らす）
+    const have = new Set(hand.map(c => c.r));
+    const order = [15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3];
+    return order.find(r => !have.has(r)) || order[0];
+  }
+  return hand.slice().sort((a, b) => sortKey(a) - sortKey(b)).slice(0, n);   // 一番弱いカード
+}
+
+// ---------- 音（Web Audio で作る） ----------
+let AC = null;
+function ac() {
+  if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; } }
+  if (AC.state === "suspended") AC.resume();
+  return AC;
+}
+function tone(f, d, type = "square", vol = 0.06, t0 = 0, slide = 0) {
+  if (!S.se || AUTO) return;
+  const a = ac(); if (!a) return;
+  const o = a.createOscillator(), g = a.createGain(), t = a.currentTime + t0;
+  o.type = type; o.frequency.setValueAtTime(f, t);
+  if (slide) o.frequency.exponentialRampToValueAtTime(slide, t + d);
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+  o.connect(g).connect(a.destination); o.start(t); o.stop(t + d + 0.02);
+}
+const SFX = {
+  tap() { tone(900, 0.04, "triangle", 0.05); },
+  card() { tone(520, 0.05, "triangle", 0.09); tone(260, 0.07, "square", 0.03, 0.02); },
+  pass() { tone(330, 0.12, "sine", 0.07); tone(247, 0.14, "sine", 0.06, 0.1); },
+  cut() { tone(400, 0.25, "sawtooth", 0.05, 0, 1800); tone(1800, 0.15, "triangle", 0.05, 0.22); },
+  rev() { [262, 330, 392, 523].forEach((f, i) => tone(f, 0.25, "square", 0.05, i * 0.1)); tone(523, 0.5, "sawtooth", 0.04, 0.4, 1046); },
+  lock() { tone(700, 0.08, "square", 0.05); tone(700, 0.08, "square", 0.05, 0.12); },
+  skip() { tone(600, 0.1, "square", 0.05, 0, 1200); tone(600, 0.1, "square", 0.05, 0.12, 1200); },
+  bomb() { tone(120, 0.5, "sawtooth", 0.08, 0, 40); tone(60, 0.6, "square", 0.05, 0.05, 30); },
+  finish() { [523, 659, 784, 1046].forEach((f, i) => tone(f, 0.18, "triangle", 0.07, i * 0.09)); },
+  bad() { [400, 300, 200].forEach((f, i) => tone(f, 0.2, "sawtooth", 0.05, i * 0.15)); },
+  win() { [523, 523, 523, 659, 784, 1046].forEach((f, i) => tone(f, 0.22, "square", 0.05, i * 0.13)); },
+  join() { tone(660, 0.1, "triangle", 0.07); tone(990, 0.15, "triangle", 0.07, 0.1); },
+};
+
+// ---------- 小さな道具 ----------
+const $ = id => document.getElementById(id);
+const wait = ms => AUTO ? Promise.resolve() : new Promise(r => setTimeout(r, ms));
+function delay(k = 1) { return wait([1100, 700, 380][S.speed] * k); }
+function esc(t) { return String(t).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+function cardHTML(c, cls = "") {
+  if (c.j) return `<div class="card joker ${cls}" data-id="${c.id}"><span class="r">JOKER</span><span class="m">🃏</span></div>`;
+  const red = c.s === "h" || c.s === "d" ? "red" : "";
+  return `<div class="card ${red} ${cls}" data-id="${c.id}"><span class="r">${label(c.r)}</span><span class="s">${SUIT_CH[c.s]}</span><span class="m">${SUIT_CH[c.s]}</span></div>`;
+}
+function flash(txt) {
+  if (AUTO) return;
+  const f = $("flash"); f.textContent = txt; f.classList.remove("go"); void f.offsetWidth; f.classList.add("go");
+}
+// 大きな文字＋音。オンラインのときは友だちの画面にも送る
+function fx(txt, sfx) {
+  flash(txt); if (SFX[sfx]) SFX[sfx]();
+  if (G) { G.evId = (G.evId || 0) + 1; G.ev.push([G.evId, txt, sfx]); if (G.ev.length > 8) G.ev.shift(); }
+}
+function msg(t) { if (G) G.msg = t; LM = ""; }
+function nm(i) { return i === ME ? "あなた" : G.players[i].name; }   // 自分の画面では自分を「あなた」と呼ぶ
+
+// =====================================================
+//  オンライン（Firebase Realtime Database）
+// =====================================================
+// ↓ Realtime Database を作ったら、その URL をここに入れる（FUTSAL STRIKE と同じもの）
+const RTDB_URL = "https://starfall-ranking-default-rtdb.asia-southeast1.firebasedatabase.app";
+const FB_CONF = { apiKey: "AIzaSyBo5h7S82Ni6_oCBrmbkQsaZp-TVDSflMY", projectId: "starfall-ranking", databaseURL: RTDB_URL };
+const USE_LOCAL_NET = QS.get("net") === "local";   // テスト用：同じブラウザの2つのタブでつなぐ
+// role: 'off'(オフライン) / 'host'(部屋を作った人) / 'guest'(入った人)
+// mode: 'friend'(友だちの部屋) / 'public'(ランダムマッチ)
+const NET = { role: "off", mode: "", room: null, reg: null, hb: 0, code: "", seat: 0, members: [null, null, null, null], started: false,
+  startAt: 0, createdAt: 0, lastBeat: 0, lastMerge: 0, busy: false, memStr: "",
+  wait: [null, null, null, null], lastAct: [null, null, null, null], usedQ: [0, 0, 0, 0], myQ: 0, sentAt: -1, lastEv: 0, snapQ: 0, sendTimer: 0 };
+
+class FBRoom {   // Firebase の部屋（daifugo/部屋番号）
+  constructor(code) { this.ref = firebase.database().ref("daifugo/" + code); this.offs = []; }
+  async get(k) { const s = await this.ref.child(k).get(); return s.val(); }
+  async all() { const s = await this.ref.get(); return s.val() || {}; }
+  incr(k) { return this.ref.child(k).transaction(v => (v || 0) + 1); }   // 同時に押されても数がずれない
+  set(k, v) { return this.ref.child(k).set(v); }
+  on(k, cb) { const r = this.ref.child(k), f = s => cb(s.val()); r.on("value", f); this.offs.push(() => r.off("value", f)); }
+  dropOnLeave(k) { (k ? this.ref.child(k) : this.ref).onDisconnect().remove(); }
+  remove() { return this.ref.remove(); }
+  close() { this.offs.forEach(f => f()); this.offs = []; }
+}
+class LocalRoom {   // テスト用の部屋（BroadcastChannel で同じブラウザのタブどうしをつなぐ）
+  constructor(code) {
+    this.data = {}; this.ls = {}; this.bc = new BroadcastChannel("daifugo-room-" + code);
+    this.bc.onmessage = e => {
+      const m = e.data;
+      if (m.hello) { this.bc.postMessage({ dump: this.data }); return; }
+      if (m.dump) { for (const k in m.dump) if (this.data[k] === undefined) this._put(k, m.dump[k]); return; }
+      this._put(m.k, m.v);
+    };
+    this.bc.postMessage({ hello: 1 });
+  }
+  _put(k, v) { this.data[k] = v; (this.ls[k] || []).forEach(f => f(v)); }
+  get(k) { return new Promise(r => setTimeout(() => r(this.data[k] ?? null), 300)); }
+  all() { return new Promise(r => setTimeout(() => r(Object.fromEntries(Object.entries(this.data).filter(([, v]) => v != null))), 300)); }
+  incr(k) { return new Promise(r => setTimeout(() => { this.set(k, (this.data[k] || 0) + 1); r(); }, 300)); }
+  set(k, v) { this.data[k] = v; this.bc.postMessage({ k, v }); (this.ls[k] || []).forEach(f => f(v)); return Promise.resolve(); }
+  on(k, cb) { (this.ls[k] = this.ls[k] || []).push(cb); cb(this.data[k] ?? null); }
+  dropOnLeave() {}
+  remove() { return this.set("host", null); }
+  close() { this.ls = {}; this.bc.close(); }
+}
+function loadScript(src) { return new Promise((ok, ng) => { const s = document.createElement("script"); s.src = src; s.onload = ok; s.onerror = ng; document.head.appendChild(s); }); }
+async function netReady() {
+  if (USE_LOCAL_NET) return true;
+  if (!RTDB_URL) throw new Error("オンライン対戦はまだ準備中だよ（Firebase の Realtime Database の設定がまだ）");
+  if (!window.firebase || !firebase.database) {
+    await loadScript("https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js");
+    await loadScript("https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js");
+    firebase.initializeApp(FB_CONF);
+  }
+  return true;
+}
+const makeRoom = code => USE_LOCAL_NET ? new LocalRoom(code) : new FBRoom(code);
+
+// --- ホスト：友だちの操作がとどくのを待つ ---
+function waitNet(seat, check) {
+  return new Promise(res => {
+    NET.wait[seat] = { check, res };
+    const a = NET.lastAct[seat];
+    if (a) tryAct(seat, a);
+  });
+}
+function tryAct(seat, a) {
+  const w = NET.wait[seat];
+  if (!w || !a || a.q <= NET.usedQ[seat]) return;
+  const r = w.check(a);
+  if (r === undefined) return;     // ルールに合わない操作は無視
+  NET.usedQ[seat] = a.q; NET.wait[seat] = null; w.res(r);
+}
+// --- ゲストが操作を送る ---
+function sendAct(a) {
+  a.q = ++NET.myQ;
+  NET.sentAt = NET.snapQ;          // 次の画面がとどくまでボタンを止める
+  NET.room.set("a" + NET.seat, JSON.stringify(a)).catch(() => {});
+  G.sel = new Set(); LM = "送信中…"; render();
+  // 3秒たっても返事がなければ、もう一度操作できるようにする
+  const at = NET.snapQ;
+  setTimeout(() => { if (NET.role === "guest" && NET.snapQ === at && NET.sentAt === at) { NET.sentAt = -1; LM = ""; render(); } }, 3000);
+}
+
+// --- ホスト：いまの様子を友だちに送る（JSON の文字にまとめる） ---
+function ser(p) { return p && { i: p.cards.map(c => c.id).join(","), t: p.type, r: p.rank, h: p.high, s: p.suits.join("") }; }
+function deser(o) { return mkPlay(o.i.split(",").map(idCard), o.t, o.r, o.h, o.s[0]); }
+function sendSnap() {
+  if (NET.role !== "host" || !G || !NET.room) return;
+  clearTimeout(NET.sendTimer);
+  NET.sendTimer = setTimeout(() => {
+    if (!G || !NET.room) return;
+    G.q = (G.q || 0) + 1;
+    const s = {
+      q: G.q, round: G.round, phase: G.phase, cur: G.cur, dir: G.dir, rev: G.rev, back: G.back, lock: G.lock, numLock: G.numLock,
+      msg: G.msg, note: G.note, choice: G.choice, ev: G.ev, res: G.res, R, got: [...G.got].join(","),
+      pl: G.players.map(p => ({ name: p.name, av: p.av, n: p.hand.length, score: p.score, title: p.title, done: p.done, kind: p.kind })),
+      h: G.players.map(p => p.hand.map(c => c.id).join(",")),
+      field: G.field && { by: G.field.by, p: ser(G.field.play) },
+      pile: G.pile.slice(-3).map(e => ({ by: e.by, p: ser(e.play) })),
+      bubble: G.bubble.map(b => b && b.cards ? { p: ser(b) } : b),
+    };
+    NET.room.set("s", JSON.stringify(s)).catch(() => {});
+  }, 40);
+}
+// --- ゲスト：とどいた様子を自分の画面にする ---
+function applySnap(str) {
+  if (!str || NET.role !== "guest") return;
+  const s = JSON.parse(str);
+  if (s.q <= NET.snapQ) return;
+  NET.snapQ = s.q;
+  R = s.R;
+  const old = G;
+  G = {
+    round: s.round, phase: s.phase, cur: s.cur, dir: s.dir, rev: s.rev, back: s.back, lock: s.lock, numLock: s.numLock,
+    msg: s.msg, note: s.note, choice: s.choice, ev: [], res: s.res, got: new Set(s.got ? s.got.split(",") : []),
+    players: s.pl.map((p, i) => Object.assign({}, p, { hand: i === NET.seat ? (s.h[i] ? s.h[i].split(",").map(idCard) : []) : new Array(p.n).fill(null) })),
+    field: s.field && { by: s.field.by, play: deser(s.field.p) },
+    pile: s.pile.map(e => ({ by: e.by, play: deser(e.p) })),
+    bubble: s.bubble.map(b => b && b.p ? deser(b.p) : b),
+    sel: old ? old.sel : new Set(),
+  };
+  // まだ手札にあるカードだけ選んだままにする
+  const ids = new Set(G.players[ME].hand.map(c => c.id));
+  G.sel = new Set([...G.sel].filter(id => ids.has(id)));
+  LM = "";
+  for (const e of s.ev || []) if (e[0] > NET.lastEv) { NET.lastEv = e[0]; flash(e[1]); if (SFX[e[2]]) SFX[e[2]](); }
+  if (G.res) showResult(); else hideResult();
+  show("game");
+  render(!old || (old.pile.length !== G.pile.length || (G.pile.length && old.pile[old.pile.length - 1].play.cards[0].id !== G.pile[G.pile.length - 1].play.cards[0].id)));
+}
+
+// =====================================================
+//  ゲームの流れ（オフラインとホストが計算する）
+// =====================================================
+const CPUS = [{ name: "ネコ", av: "🐱" }, { name: "パンダ", av: "🐼" }, { name: "キツネ", av: "🦊" }];
+// seats = 4人ぶんの { name, av, kind:'me'|'net'|'cpu' }
+function newGame(seats) {
+  token++;
+  countMe();
+  R = NET.role === "host" && NET.mode === "public" ? publicRules() : rulesFromS();
+  if (!seats) seats = [{ name: "あなた", av: "😎", kind: AUTO ? "cpu" : "me" }, ...CPUS.map(c => Object.assign({ kind: "cpu" }, c))];
+  G = {
+    seats, players: seats.map(s => Object.assign({ score: 0, title: null, hand: [], done: false }, s)),
+    round: 0, prevRanks: null, phase: "idle", sel: new Set(), got: new Set(), ev: [], evId: G ? G.evId : 0, R0: R, q: G ? G.q : 0,
+  };
+  ME = 0;
+  hideResult();
+  show("game");
+  playRound(token);
+}
+
+async function playRound(tk) {
+  G.round++;
+  G.guard = 0;
+  const deck = makeDeck();
+  G.players.forEach(p => { p.hand = []; p.done = false; });
+  deck.forEach((c, i) => G.players[i % 4].hand.push(c));
+  Object.assign(G, { rev: false, back: false, lock: null, numLock: false, field: null, pile: [], passed: [false, false, false, false],
+    bubble: ["", "", "", ""], note: ["", "", "", ""], finished: [], bottom: [], sel: new Set(), got: new Set(), dir: 1, choice: null, res: null });
+  G.players.forEach(p => sortHand(p.hand));
+
+  // 2ラウンド目からはカード交換
+  if (G.prevRanks) {
+    G.cur = G.prevRanks[3];               // 大貧民から始める
+    G.phase = "exchange";
+    msg("カード交換中…");
+    await exchange(tk);
+    if (tk !== token) return;
+  } else {
+    G.cur = G.players.findIndex(p => p.hand.some(c => c.id === "d3"));   // ♦3を持っている人から
+    msg(`${G.players[G.cur].name}が ♦3 を持っているので最初に出すよ`);
+  }
+  G.phase = "play";
+  render();
+  await delay();
+
+  // --- 1手ずつ進める ---
+  while (G.players.filter(p => !p.done).length > 1) {
+    if (tk !== token) return;
+    const p = G.cur, pl = G.players[p];
+    render();
+    let play;
+    if (pl.kind === "me") play = await humanTurn();
+    else if (pl.kind === "net") {
+      const hand = pl.hand;
+      play = await waitNet(p, a => {
+        if (a.k === "pass") return G.field ? null : undefined;
+        if (a.k !== "play" || !a.ids) return undefined;
+        const ids = new Set(a.ids);
+        return legal(hand).find(q => q.n === ids.size && q.cards.every(c => ids.has(c.id)));
+      });
+      if (play === LEFT) { await delay(0.5); if (tk !== token) return; play = cpuChoose(p, S.cpu); }
+    } else { await delay(); if (tk !== token) return; play = cpuChoose(p, S.cpu); }   // 待っているあいだにホームにもどったら止める
+    if (tk !== token || play === "quit") return;
+    if (play) await doPlay(p, play, tk); else doPass(p);
+    if (tk !== token) return;
+    if (++G.guard > 3000) { console.error("ループが止まらない"); return; }
+  }
+  if (tk !== token) return;
+  endRound(tk);
+}
+
+// カードを出す
+async function doPlay(p, play, tk) {
+  const pl = G.players[p];
+  pl.hand = pl.hand.filter(c => !play.cards.includes(c));
+  G.note = ["", "", "", ""];
+  const prev = G.field && G.field.play;
+  const ev = [];
+  // しばり：同じマークが2回続いたら
+  if (R.lock && prev && !G.lock && !play.hasJoker && !prev.hasJoker && play.suits.join() === prev.suits.join()) {
+    G.lock = play.suits; ev.push(["しばり！ " + play.suits.map(s => SUIT_CH[s]).join(""), "lock"]);
+  }
+  // 階段しばり：1つ上の数字が続いたら
+  if (R.numlock && prev && !G.numLock && prev.type === "set" && play.type === "set" && !prev.jokerOnly && !play.jokerOnly && strength(play) === strength(prev) + 1) {
+    G.numLock = true; ev.push(["階段しばり！", "lock"]);
+  }
+  G.field = { play, by: p };
+  G.pile.push({ play, by: p });
+  G.bubble[p] = play;
+  let cut = false, skip = 0;
+  if (R.spe3 && prev && prev.n === 1 && prev.jokerOnly && isSpe3(play)) { cut = true; ev.push(["スペ3返し！", "cut"]); }
+  if (isSand(play)) { cut = true; ev.push(["砂嵐！", "cut"]); }
+  if (is99(play)) { cut = true; ev.push(["救急車！🚑", "cut"]); }
+  if (R.rev && isRevPlay(play)) {
+    G.rev = !G.rev; G.players.forEach(q => sortHand(q.hand));
+    ev.push([G.rev ? "革命！！" : "革命返し！", "rev"]);
+  }
+  if (R.back && covers(play, 11)) { G.back = true; ev.push(["11バック！", "lock"]); }
+  if (R.eight && covers(play, 8)) { cut = true; ev.push(["8切り！", "cut"]); }
+  if (R.rev9 && covers(play, 9) && !cut) { G.dir = -G.dir; ev.push(["9リバース！", "skip"]); }
+  if (R.skip5 && covers(play, 5) && !cut) { skip = countOf(play, 5); ev.push([`5スキップ！ ×${skip}`, "skip"]); }
+  SFX.card();
+  msg(`${pl.name}が ${play.cards.map(cardName).join(" ")} を出した`);
+  render(true);
+  for (const [t, s] of ev) { fx(t, s); render(); await delay(1.1); if (tk !== token) return; }
+
+  if (pl.hand.length === 0) await finishPlayer(p, play);
+  else {
+    // 7渡し：次の人にカードをわたす
+    if (R.give7 && covers(play, 7)) {
+      const to = nextActive(p);
+      const n = Math.min(countOf(play, 7), pl.hand.length);
+      if (to >= 0 && n > 0) {
+        fx("7渡し！", "skip");
+        const cards = await choose(p, "give", n, `${G.players[to].name}にわたすカードを${n}枚えらんでね`, tk);
+        if (tk !== token || cards === "quit") return;
+        pl.hand = pl.hand.filter(c => !cards.includes(c));
+        G.players[to].hand.push(...cards); sortHand(G.players[to].hand);
+        cards.forEach(c => G.got.add(c.id));
+        G.note[to] = `${pl.name}から ${cards.map(cardName).join(" ")} をもらった`;
+        G.note[p] = `${G.players[to].name}に ${cards.map(cardName).join(" ")} をわたした`;
+        msg(`${pl.name}が ${G.players[to].name}に ${n}枚わたした`);
+      }
+    }
+    // 10捨て：好きなカードを捨てる
+    if (R.toss10 && covers(play, 10) && pl.hand.length) {
+      const n = Math.min(countOf(play, 10), pl.hand.length);
+      fx("10捨て！", "skip");
+      const cards = await choose(p, "toss", n, `捨てるカードを${n}枚えらんでね`, tk);
+      if (tk !== token || cards === "quit") return;
+      pl.hand = pl.hand.filter(c => !cards.includes(c));
+      msg(`${pl.name}が ${cards.map(cardName).join(" ")} を捨てた`);
+    }
+    // Qボンバー：数字を言って、全員がその数字を捨てる
+    if (R.qbomb && covers(play, 12) && pl.hand.length) {
+      const times = Math.min(countOf(play, 12), 3);
+      for (let t = 0; t < times; t++) {
+        const r = await choose(p, "bomb", 1, `ボンバーする数字をえらんでね${times > 1 ? `（${t + 1}/${times}）` : ""}`, tk);
+        if (tk !== token || r === "quit") return;
+        let total = 0;
+        G.players.forEach(q => { const before = q.hand.length; q.hand = q.hand.filter(c => c.j || c.r !== r); total += before - q.hand.length; });
+        fx(`Qボンバー！ 「${label(r)}」`, "bomb");
+        msg(`${pl.name}が「${label(r)}」をボンバー！ 全員で${total}枚捨てた`);
+        render(); await delay(1.2);
+        if (tk !== token) return;
+      }
+    }
+    // カードがなくなった人はあがり（自分が先、ほかの人はそのあと）
+    for (const i of [p, 0, 1, 2, 3]) {
+      if (!G.players[i].done && G.players[i].hand.length === 0) await finishPlayer(i, null);
+      if (tk !== token) return;
+    }
+  }
+  if (tk !== token) return;
+  if (cut) {
+    await delay(0.6);
+    if (tk !== token) return;
+    clearField();
+    // 同じ人がもう一度出す（あがっていたら次の人）
+    G.cur = p;
+    for (let g = 0; g < 4 && G.players[G.cur].done; g++) G.cur = (G.cur + G.dir + 4) % 4;
+  } else {
+    advance();
+    for (let k = 0; k < skip && G.field; k++) advance();   // 5スキップ：とばす
+  }
+}
+
+function doPass(p) {
+  G.passed[p] = true;
+  G.bubble[p] = "pass";
+  SFX.pass();
+  msg(`${G.players[p].name}はパス`);
+  advance();
+}
+
+// 次にカードを出せる人（あがっていない人）
+function nextActive(p) {
+  for (let g = 1; g < 4; g++) { const i = (p + G.dir * g + 8) % 4; if (!G.players[i].done) return i; }
+  return -1;
+}
+// 次の人へ。全員パスして出した人に戻ったら、場を流す
+function advance() {
+  let i = G.cur;
+  for (let g = 0; g < 12; g++) {
+    i = (i + G.dir + 4) % 4;
+    if (G.field && i === G.field.by) {
+      clearField();
+      if (!G.players[i].done) { G.cur = i; return; }
+      continue;   // 出した人があがっていたら、その次の人から
+    }
+    if (G.players[i].done || G.passed[i]) continue;
+    G.cur = i; return;
+  }
+}
+
+function clearField() {
+  G.field = null; G.pile = []; G.lock = null; G.numLock = false; G.back = false;
+  G.passed = [false, false, false, false];
+  G.bubble = G.bubble.map((b, i) => G.players[i].done ? b : "");
+}
+
+// 手札がなくなった
+async function finishPlayer(p, play) {
+  const pl = G.players[p];
+  pl.done = true;
+  if (isFoul(play)) {
+    G.bottom.push(p);
+    G.bubble[p] = "反則…";
+    fx("反則上がり…", "bad");
+    msg(`${pl.name}は反則上がり！（最後がジョーカー・8・2など）`);
+  } else {
+    G.finished.push(p);
+    G.bubble[p] = `${G.finished.length}位あがり！`;
+    fx(`${pl.name} あがり！`, "finish");
+    msg(`${pl.name}が ${G.finished.length}位であがった！`);
+    // 都落ち：前の大富豪が1番になれなかったら、大貧民へ
+    if (R.miyako && G.prevRanks && G.finished.length === 1) {
+      const d = G.prevRanks[0], dp = G.players[d];
+      if (d !== p && !dp.done) {
+        const tk = token;
+        render(); await delay(1);
+        if (tk !== token) return;
+        dp.done = true; dp.hand = []; G.bottom.push(d); G.bubble[d] = "都落ち…";
+        fx("都落ち！", "bad");
+        msg(`${dp.name}は1番になれなかったので都落ち（大貧民）`);
+      }
+    }
+  }
+  if (!G) return;
+  render();
+  await delay(1.2);
+}
+
+function endRound(tk) {
+  const left = G.players.findIndex(p => !p.done);
+  if (left >= 0) G.finished.push(left);
+  let ranks = [...G.finished, ...G.bottom.slice().reverse()];   // 1位〜4位のプレイヤー番号
+  // 下剋上：前の大貧民が1位なら、順位がひっくり返る
+  let geko = false;
+  if (R.geko && G.prevRanks && ranks[0] === G.prevRanks[3]) { ranks = ranks.slice().reverse(); geko = true; fx("下剋上！！", "rev"); }
+  ranks.forEach((p, k) => { G.players[p].title = k; G.players[p].score += POINTS[k]; });
+  G.prevRanks = ranks;
+  G.phase = "result";
+  const last = G.round >= R.rounds;
+  const order = [0, 1, 2, 3].sort((a, b) => G.players[b].score - G.players[a].score);
+  G.res = { final: last, round: G.round, ranks, order, geko };
+  if (NET.role === "off" && G.players[0].kind === "me") {
+    ST.rounds++; if (ranks[0] === 0) ST.daifugo++;
+    if (last) { ST.games++; if (G.players[0].score === G.players[order[0]].score) ST.wins++; }
+    saveST();
+  }
+  if (AUTO) { if (last) autoDone(order); else playRound(tk); return; }
+  if (last) SFX.win();
+  showResult();
+  render();
+}
+
+// 結果の小窓（ホストもゲストも同じ形で出す）
+function showResult() {
+  const r = G.res, P = G.players, boss = NET.role !== "guest";
+  let html;
+  if (r.final) {
+    const top = P[r.order[0]].score, mine = P[ME].score === top;
+    const tie = P[r.order[1]].score === top;
+    html = `<h2>🏆 最終結果</h2>
+      <table><tr><th>順位</th><th>なまえ</th><th>合計</th></tr>
+      ${r.order.map((p, k) => `<tr class="${p === ME ? "mine" : ""}"><td>${k + 1}位</td><td>${P[p].av} ${esc(nm(p))}</td><td>${P[p].score}点</td></tr>`).join("")}</table>
+      <p class="note">${mine ? (tie ? "🎉 同点で優勝！" : "🎉 優勝おめでとう！") : "おしい！ もう一度ちょうせんしよう"}</p>
+      <div class="row">${boss ? `<button id="rAgain">もう一度</button>` : ""}<button id="rHome">${NET.role === "off" ? "ホームへ" : "部屋を出る"}</button></div>
+      ${boss ? "" : `<p class="note">部屋を作った人が「もう一度」を押すと続けられるよ</p>`}`;
+  } else {
+    html = `<h2>ラウンド ${r.round} の結果</h2>
+      ${r.geko ? `<p class="note" style="color:var(--gold);font-size:14px">下剋上で順位がひっくり返った！</p>` : ""}
+      <table><tr><th>順位</th><th>なまえ</th><th>点</th><th>合計</th></tr>
+      ${r.ranks.map((p, k) => `<tr class="${p === ME ? "mine" : ""}"><td><span class="title t${k}">${TITLES[k]}</span></td><td>${P[p].av} ${esc(nm(p))}</td><td>+${POINTS[k]}</td><td>${P[p].score}</td></tr>`).join("")}</table>
+      <p class="note">次のラウンドは、カード交換から始まるよ</p>
+      <div class="row">${boss ? `<button id="rNext">次のラウンドへ ▶</button>` : `<span class="note">部屋を作った人が進めるのを待っています…</span>`}</div>`;
+  }
+  $("resultBody").innerHTML = html;
+  if ($("rNext")) $("rNext").onclick = () => { SFX.tap(); hideResult(); G.res = null; playRound(token); };
+  if ($("rAgain")) $("rAgain").onclick = () => { SFX.tap(); newGame(G.seats); };
+  if ($("rHome")) $("rHome").onclick = () => { SFX.tap(); goHome(); };
+  $("result").classList.add("show");
+}
+function hideResult() { $("result").classList.remove("show"); }
+
+// ---------- だれかにカードや数字をえらんでもらう ----------
+// kind: 'ex'(交換で返す) 'give'(7渡し) 'toss'(10捨て) 'bomb'(Qボンバーの数字)
+async function choose(seat, kind, n, text, tk) {
+  const pl = G.players[seat];
+  if (pl.kind === "cpu") { if (!AUTO) { render(); await delay(0.8); } if (tk !== token) return "quit"; return cpuPick(seat, kind, n); }
+  const before = G.phase;
+  G.choice = { seat, kind, n, text }; G.phase = "choose"; G.sel = new Set();
+  render();
+  let r;
+  if (pl.kind === "me") r = await new Promise(res => (G.resolveChoice = res));
+  else {
+    r = await waitNet(seat, a => {
+      if (a.k !== "choose") return undefined;
+      if (kind === "bomb") return a.r >= 3 && a.r <= 15 ? a.r : undefined;
+      const cards = pl.hand.filter(c => (a.ids || []).includes(c.id));
+      return cards.length === n ? cards : undefined;
+    });
+    if (r === LEFT) r = cpuPick(seat, kind, n);
+  }
+  if (tk !== token) return "quit";
+  G.choice = null; G.phase = before; G.sel = new Set();
+  return r;
+}
+
+// ---------- カード交換 ----------
+async function exchange(tk) {
+  const [d, f, h, dh] = G.prevRanks;
+  const P = G.players;
+  const strongest = (hand, n) => hand.slice().sort((a, b) => sortKey(b) - sortKey(a)).slice(0, n);
+  const give = (from, to, cards) => {
+    P[from].hand = P[from].hand.filter(c => !cards.includes(c));
+    P[to].hand.push(...cards); sortHand(P[to].hand);
+    cards.forEach(c => G.got.add(c.id));
+  };
+  // 大貧民→大富豪に2枚、貧民→富豪に1枚（一番強いカード）
+  const g1 = strongest(P[dh].hand, 2), g2 = strongest(P[h].hand, 1);
+  give(dh, d, g1); give(h, f, g2);
+  const names = cs => cs.map(cardName).join(" ");
+  G.note[dh] = `大富豪の${P[d].name}に ${names(g1)} をわたした`;
+  G.note[h] = `富豪の${P[f].name}に ${names(g2)} をわたした`;
+  G.note[d] = `大貧民から ${names(g1)} をもらった！`;
+  G.note[f] = `貧民から ${names(g2)} をもらった！`;
+
+  // 大富豪・富豪は、いらないカードを返す
+  for (const [rich, poor, n] of [[d, dh, 2], [f, h, 1]]) {
+    const back = await choose(rich, "ex", n, `${G.note[rich]} → ${P[poor].name}に返すカードを${n}枚えらんでね`, tk);
+    if (tk !== token || back === "quit") return;
+    give(rich, poor, back);
+    G.note[poor] += ` / ${P[rich].name}から ${names(back)} がもどってきた`;
+    G.note[rich] += ` / ${names(back)} を返した`;
+  }
+  G.phase = "play"; G.sel = new Set();
+  msg("カード交換をしたよ");
+  render();
+  await delay(1.5);
+}
+
+// ---------- あなたの番 ----------
+function humanTurn() {
+  G.sel = new Set();
+  render();
+  return new Promise(res => (G.resolveHuman = res));
+}
+// えらんだカードがルールどおりの出し方になっているか
+function selectedPlay() {
+  if (!G.legal || !G.sel.size) return null;
+  return G.legal.find(p => p.n === G.sel.size && p.cards.every(c => G.sel.has(c.id))) || null;
+}
+function isMyTurn() {
+  if (!G || G.phase !== "play" || G.cur !== ME || G.players[ME].done) return false;
+  if (NET.role === "guest") return NET.sentAt !== NET.snapQ;
+  return G.players[ME].kind === "me";
+}
+function myChoice() {
+  return G && G.phase === "choose" && G.choice && G.choice.seat === ME && (NET.role !== "guest" || NET.sentAt !== NET.snapQ);
+}
+
+// =====================================================
+//  画面をかく
+// =====================================================
+function render(fresh) {
+  if (!G || !G.players) return;
+  const P = G.players;
+  $("roundTxt").textContent = `R ${G.round}/${R.rounds}`;
+  $("badges").innerHTML =
+    (NET.role !== "off" ? `<span class="badge net">🌐 ${NET.code}</span>` : "") +
+    (G.rev ? `<span class="badge rev">革命中</span>` : "") +
+    (G.back ? `<span class="badge back">11バック</span>` : "") +
+    (G.lock ? `<span class="badge lock">しばり ${G.lock.map(s => SUIT_CH[s]).join("")}</span>` : "") +
+    (G.numLock ? `<span class="badge lock">階段しばり</span>` : "") +
+    (G.dir < 0 ? `<span class="badge dir">逆回り</span>` : "");
+
+  // ほかの人の席（自分の次の人から順に）
+  $("seats").innerHTML = [1, 2, 3].map(k => {
+    const i = (ME + k) % 4, p = P[i], b = G.bubble[i];
+    let bub = "";
+    if (b === "pass") bub = `<span class="pass">パス</span>`;
+    else if (b && b.cards) bub = b.cards.map(c => cardHTML(c, "mini")).join("");
+    else if (b) bub = esc(b);
+    const t = p.title != null ? `<span class="title t${p.title}">${TITLES[p.title]}</span>` : "";
+    const who = NET.role !== "off" ? (p.kind === "cpu" ? "CPU" : "👤") : "";
+    return `<div class="seat ${(G.phase === "play" && G.cur === i) || (G.phase === "choose" && G.choice && G.choice.seat === i) ? "turn" : ""} ${p.done ? "done" : ""}">
+      <span class="who">${who}</span>
+      <div class="av">${p.av}</div><div class="nm">${esc(p.name)}</div>${t}
+      <div class="cnt">🂠 ${p.hand.length}枚 ・ ${p.score}点</div>
+      <div class="bubble">${bub}</div></div>`;
+  }).join("");
+
+  // 場
+  const shown = G.pile.slice(-3);
+  $("pile").innerHTML = shown.map((e, k) => {
+    const last = k === shown.length - 1;
+    const off = (k - shown.length + 1) * 14;
+    return `<div class="play ${last ? "" : "old"} ${last && fresh ? "new" : ""}" style="margin-left:${off}px;margin-top:${off}px">${e.play.cards.map(c => cardHTML(c)).join("")}</div>`;
+  }).join("");
+  if (G.field) $("fieldInfo").textContent = `${nm(G.field.by)}が出したカード（${G.field.play.type === "stair" ? "階段" : G.field.play.n + "枚"}）`;
+  else $("fieldInfo").textContent = G.phase === "play" ? `場はからっぽ → ${nm(G.cur)}が親` : "";
+
+  // メッセージ（自分だけの一言 → えらぶ番 → 交換などのお知らせ → みんなへのお知らせ）
+  const me = P[ME];
+  const myTurn = isMyTurn(), mc = myChoice();
+  let m = LM;
+  if (!m && G.phase === "choose" && G.choice) m = G.choice.seat === ME ? G.choice.text : `${nm(G.choice.seat)}がえらんでいるよ…`;
+  if (!m && myTurn) m = G.field ? "あなたの番！ カードをえらんで「出す」" : "あなたが親！ 好きなカードを出せるよ";
+  if (!m && G.note && G.note[ME]) m = G.note[ME];
+  if (!m) m = G.msg || "";
+  $("msg").textContent = m;
+
+  // Qボンバーの数字ボタン
+  const bomb = mc && G.choice.kind === "bomb";
+  $("pick").classList.toggle("show", bomb);
+  if (bomb && !$("pick").children.length) $("pick").innerHTML = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15].map(r => `<button data-r="${r}">${label(r)}</button>`).join("");
+  if (!bomb) $("pick").innerHTML = "";
+
+  // 自分
+  $("me").className = myTurn || mc ? "turn" : "";
+  const myBub = G.bubble[ME];
+  $("me").innerHTML = `${me.av} <b>あなた</b> ${me.title != null ? `<span class="title t${me.title}">${TITLES[me.title]}</span>` : ""} ${me.score}点 ${myBub === "pass" ? "・パス" : (typeof myBub === "string" && myBub ? "・" + esc(myBub) : "")}`;
+
+  // 手札
+  G.legal = myTurn ? legal(me.hand) : [];
+  const playable = new Set();
+  G.legal.forEach(p => p.cards.forEach(c => playable.add(c.id)));
+  const hand = me.hand, n = hand.length;
+  const box = $("hand");
+  const cw = box.firstElementChild ? box.firstElementChild.offsetWidth : 54;
+  const W = Math.min(box.clientWidth || 360, 700) - 8;
+  const ov = n > 1 ? Math.min(4, (W - n * cw) / (n - 1)) : 0;    // カードを重ねる量
+  box.innerHTML = hand.map((c, k) => {
+    const cls = [G.sel.has(c.id) ? "sel" : "", myTurn && !playable.has(c.id) ? "dim" : "", G.got && G.got.has(c.id) ? "got" : ""].join(" ");
+    return cardHTML(c, cls).replace('class="card', `style="margin-left:${k ? ov : 0}px" class="card`);
+  }).join("");
+
+  // ボタン
+  const pickCards = mc && G.choice.kind !== "bomb";
+  $("bPlay").textContent = pickCards ? `決定（${G.sel.size}/${G.choice.n}）` : "出す";
+  $("bPlay").disabled = pickCards ? G.sel.size !== G.choice.n : !(myTurn && selectedPlay());
+  $("bPass").disabled = !(myTurn && G.field);
+  $("bHint").disabled = !(myTurn && G.legal.length);
+
+  sendSnap();
+}
+
+// 手札をタップ
+$("hand").addEventListener("click", e => {
+  const el = e.target.closest(".card"); if (!el || !G) return;
+  const id = el.dataset.id;
+  if (myChoice() && G.choice.kind !== "bomb") {
+    if (G.sel.has(id)) G.sel.delete(id);
+    else if (G.sel.size < G.choice.n) G.sel.add(id);
+  } else if (isMyTurn()) {
+    if (G.sel.has(id)) G.sel.delete(id); else G.sel.add(id);
+    G.legal = legal(G.players[ME].hand);
+    const sp = selectedPlay();
+    LM = sp ? `${sp.type === "stair" ? "階段" : sp.n === 1 ? "1枚" : sp.n + "枚組"}で出せるよ` : G.sel.size ? "その組み合わせは出せないよ" : "";
+  } else return;
+  SFX.tap();
+  const keep = LM; render(); LM = keep;
+});
+$("pick").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b || !myChoice()) return;
+  SFX.tap();
+  const r = +b.dataset.r;
+  if (NET.role === "guest") sendAct({ k: "choose", r });
+  else { const f = G.resolveChoice; G.resolveChoice = null; f && f(r); }
+});
+$("bPlay").onclick = () => {
+  if (!G) return;
+  if (myChoice()) {
+    const cards = G.players[ME].hand.filter(c => G.sel.has(c.id));
+    if (cards.length !== G.choice.n) return;
+    SFX.tap();
+    if (NET.role === "guest") { sendAct({ k: "choose", ids: cards.map(c => c.id) }); return; }
+    const f = G.resolveChoice; G.resolveChoice = null; G.sel = new Set(); f && f(cards);
+    return;
+  }
+  G.legal = isMyTurn() ? legal(G.players[ME].hand) : [];
+  const sp = selectedPlay(); if (!sp) return;
+  if (NET.role === "guest") { sendAct({ k: "play", ids: sp.cards.map(c => c.id) }); return; }
+  const r = G.resolveHuman; G.resolveHuman = null; G.sel = new Set(); r && r(sp);
+};
+$("bPass").onclick = () => {
+  if (!G || !G.field || !isMyTurn()) return;
+  if (NET.role === "guest") { sendAct({ k: "pass" }); return; }
+  const r = G.resolveHuman; G.resolveHuman = null; G.sel = new Set(); r && r(null);
+};
+$("bHint").onclick = () => {
+  if (!isMyTurn()) return;
+  const q = cpuChoose(ME, 1, true); if (!q) return;
+  SFX.tap();
+  G.sel = new Set(q.cards.map(c => c.id));
+  LM = "💡 これを出すのがおすすめ";
+  const keep = LM; render(); LM = keep;
+};
+$("bHome").onclick = () => {
+  const q = NET.role === "off" ? "ホームにもどる？（このゲームはおしまいになるよ）"
+    : NET.role === "host" ? "部屋をとじてホームにもどる？（友だちのゲームも終わるよ）" : "部屋を出る？（あなたの席は CPU がつづけるよ）";
+  if (G && G.phase !== "result" && !confirm(q)) return;
+  goHome();
+};
+$("bNow").onclick = () => {
+  if (!R) return;
+  SFX.tap();
+  $("nowBody").innerHTML = `<p>ラウンド数：<b>${R.rounds}</b> ・ ジョーカー：<b>${R.jokers}枚</b></p>` +
+    RULES.filter(x => !x.special && R[x.id]).map(x => `<p><b>${x.name}</b>：${x.desc}</p>`).join("") +
+    (NET.role === "guest" ? `<p class="note">部屋を作った人のルールで遊んでいるよ</p>` : "");
+  $("nowRules").classList.add("show");
+};
+$("bNowClose").onclick = () => $("nowRules").classList.remove("show");
+
+// =====================================================
+//  オンラインの部屋づくり
+// =====================================================
+const AVS = ["😎", "😺", "🐶", "🐼", "🦊", "🐸", "🐯", "🐵", "🐧", "🦄", "👻", "🤖", "⚽", "⚾", "🍣", "🌟"];
+// 使えない言葉（STARFALL と同じリスト）。電話番号みたいな数字の並びもダメ
+const NG_WORDS = ["しね", "死ね", "シネ", "ころす", "殺す", "コロス", "うざ", "ウザ", "きも", "キモ", "ばか", "バカ", "馬鹿",
+  "あほ", "アホ", "ぶす", "ブス", "ちんこ", "まんこ", "fuck", "shit", "bitch", "kill", "sex", "http", "www", ".com"];
+function okName(n) {
+  const l = String(n).normalize("NFKC").toLowerCase();
+  return !NG_WORDS.some(w => l.includes(w)) && !/\d{4,}/.test(l);
+}
+function cleanName(t) { return String(t || "").replace(/[<>&"'\s]/g, "").slice(0, 8); }
+// ほかの人の名前を出すときは、ダメな言葉なら「プレイヤー」にする
+function safeName(n, k) { n = cleanName(n); return n && okName(n) ? n : "プレイヤー" + (k || ""); }
+const CID = Math.random().toString(36).slice(2, 10);   // この画面のしるし（席の取りあいを見分ける）
+// ランダムマッチの標準ルール：⚙️ のスイッチのルールだけ・3ラウンド・ジョーカー1枚
+function publicRules() {
+  const r = { rounds: 3, jokers: 1 };
+  RULES.forEach(x => { if (!x.special) r[x.id] = !!x.base; });
+  return r;
+}
+const PUB_FRESH = 15000;
+
+// ---------- 遊んだ人数で、ランダムマッチを解放する ----------
+const UNLOCK_AT = 30;      // ← この人数をこえたらランダムマッチが使えるようになる
+let playerCount = null;    // いままでに遊んだ人数（Firebase の daifugo/stats/players）
+// はじめて遊んだときだけ、人数を1つ増やす（送るのは数字だけ）
+async function countMe() {
+  if (S.counted || AUTO) return;
+  try {
+    await netReady();
+    const st = makeRoom("stats");
+    await st.incr("players");
+    st.close();
+    S.counted = true; saveS();
+  } catch (e) {}   // まだ準備中・オフラインなら、次に遊んだときにもう一度ためす
+}
+async function loadCount() {
+  try { await netReady(); const st = makeRoom("stats"); playerCount = (await st.get("players")) || 0; st.close(); }
+  catch (e) { playerCount = null; }
+  return playerCount;
+}
+function unlocked() { return playerCount !== null && playerCount >= UNLOCK_AT; }
+// ランダムマッチのボタンを、鍵つき／使える にかえる
+function lockUI() {
+  const b = $("onRandom"), t = $("onLock");
+  if (unlocked()) {
+    b.disabled = false; b.textContent = "🎲 だれかと対戦（ランダムマッチ）";
+    t.textContent = `🎉 遊んだ人が ${playerCount}人 をこえて解放されたよ！`;
+  } else {
+    b.disabled = true; b.textContent = "🔒 ランダムマッチ";
+    t.textContent = playerCount === null ? "オンラインの準備ができたら、遊んだ人数が数えられるよ"
+      : `遊んだ人が ${UNLOCK_AT}人 になったら解放！ いま ${playerCount}人（あと ${UNLOCK_AT - playerCount}人）`;
+  }
+}   // 15秒より前から合図がない部屋は、もういないと考える
+
+function onErr(t) { $("onErr").textContent = t || ""; }
+function onWaitUI(html) {
+  $("onSetup").style.display = html ? "none" : "";
+  $("onWait").innerHTML = html || "";
+}
+function openOnline() {
+  $("onName").value = S.name;
+  $("onAvs").innerHTML = AVS.map(a => `<button class="${a === S.av ? "on" : ""}" data-a="${a}">${a}</button>`).join("");
+  onErr(""); onWaitUI(null);
+  $("online").classList.add("show");
+  lockUI();
+  loadCount().then(lockUI);
+}
+$("onAvs").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; S.av = b.dataset.a; S.name = cleanName($("onName").value); saveS(); SFX.tap(); openOnline(); });
+function readName() {
+  const n = cleanName($("onName").value);
+  if (!n) { onErr("ニックネームを入れてね"); return null; }
+  if (!okName(n)) { onErr("その言葉は使えないよ。別のニックネームにしてね"); return null; }
+  S.name = n; saveS(); return n;
+}
+
+// ---------- 部屋を作る（友だち用／ランダムマッチ用） ----------
+async function createRoom(isPublic) {
+  const name = readName(); if (!name) return false;
+  try { await netReady(); } catch (e) { onErr(e.message); return false; }
+  for (let i = 0; i < 8; i++) {
+    const code = String(1000 + ((Math.random() * 9000) | 0)), room = makeRoom(code);
+    let h; try { h = await room.get("host"); } catch (e) { onErr("つながらなかったよ。ネットを確かめてね"); room.close(); return false; }
+    if (h) { room.close(); continue; }
+    Object.assign(NET, { room, code, role: "host", mode: isPublic ? "public" : "friend", seat: 0, started: false,
+      members: [{ name, av: S.av, cid: CID }, null, null, null], startAt: 0, createdAt: Date.now(), lastBeat: 0, lastMerge: Date.now(), busy: false, memStr: "",
+      wait: [null, null, null, null], lastAct: [null, null, null, null], usedQ: [0, 0, 0, 0] });
+    R = isPublic ? publicRules() : rulesFromS();
+    await room.set("host", { name, av: S.av, rules: isPublic ? "標準ルール（3ラウンド）" : activeRuleNames(R).join("・"), pub: isPublic ? 1 : 0, at: Date.now() });
+    room.dropOnLeave(null);
+    for (const k of [1, 2, 3]) {
+      room.on("p" + k, v => hostMember(k, v));
+      room.on("a" + k, v => { if (!v) return; const a = JSON.parse(v); NET.lastAct[k] = a; tryAct(k, a); });
+    }
+    if (isPublic) {
+      // 「待っている部屋のリスト」にのせて、1秒ごとに様子を見る
+      NET.reg = makeRoom("pub");
+      NET.reg.dropOnLeave(code);
+      pubBeat();
+      NET.hb = setInterval(pubTick, 1000);
+    }
+    hostLobby();
+    return true;
+  }
+  onErr("部屋が作れなかったよ。もう一度ためしてね");
+  return false;
+}
+function memberCount() { return NET.members.filter(Boolean).length; }
+// リストに「まだ待っているよ（いま何人）」と書く
+function pubBeat() {
+  if (!NET.reg || NET.started) return;
+  NET.lastBeat = Date.now();
+  NET.reg.set(NET.code, { at: Date.now(), c: NET.createdAt, n: memberCount(), open: 1 }).catch(() => {});
+}
+// ランダムマッチのホスト：1秒ごと
+async function pubTick() {
+  if (NET.role !== "host" || NET.mode !== "public" || NET.started || NET.busy) return;
+  const now = Date.now(), cnt = memberCount();
+  if (now - NET.lastBeat > 5000) pubBeat();
+  // 2人以上そろったら15秒後にスタート（4人なら今すぐ）
+  if (cnt >= 2 && !NET.startAt) NET.startAt = now + 15000;
+  if (cnt < 2) NET.startAt = 0;
+  if (cnt === 4 || (NET.startAt && now >= NET.startAt)) { hostStart(); return; }
+  // ひとりで待っているあいだは、先に待っている別の部屋があればそっちに入る（部屋がバラバラにならないように）
+  if (cnt === 1 && now - NET.lastMerge > 3000) {
+    NET.lastMerge = now; NET.busy = true;
+    try {
+      const all = await NET.reg.all();
+      const older = Object.entries(all).filter(([c, v]) => c !== NET.code && v && v.open && now - v.at < PUB_FRESH && v.n < 4 &&
+        (v.c < NET.createdAt || (v.c === NET.createdAt && c < NET.code))).sort((a, b) => a[1].c - b[1].c);
+      if (older.length && memberCount() === 1 && !NET.started && NET.role === "host") {
+        leaveOnline();
+        for (const [code] of older) if (!(await joinRoom(code))) return;
+        await createRoom(true);   // 入れなかったら、もう一度自分で部屋を作る
+        return;
+      }
+    } catch (e) {}
+    NET.busy = false;
+  }
+  hostLobby();
+}
+// ホスト：だれかが入った／出た
+function hostMember(k, v) {
+  if (NET.role !== "host") return;
+  const had = NET.members[k];
+  if (!NET.started) {
+    NET.members[k] = v ? { name: safeName(v.name, k + 1), av: AVS.includes(v.av) ? v.av : "😎", cid: v.cid } : null;
+    if (v && !had) { SFX.join(); if (NET.startAt) NET.startAt = Math.max(NET.startAt, Date.now() + 8000); }
+    pubBeat(); hostLobby(); return;
+  }
+  if (!v && had && G && G.players[k].kind === "net") {
+    // ゲーム中に抜けた → その席は CPU が引きつぐ
+    G.players[k].kind = "cpu"; G.players[k].name += "(CPU)"; G.seats[k] = Object.assign({}, G.seats[k], { kind: "cpu", name: G.players[k].name });
+    msg(`${had.name}が抜けたので、CPU が引きつぐよ`);
+    const w = NET.wait[k]; if (w) { NET.wait[k] = null; w.res(LEFT); }
+    render();
+  }
+}
+function memberList(m, host) {
+  return `<div class="members">${m.map((x, i) => `<div>${x ? `${x.av} ${esc(x.name)}${i === NET.seat ? "（あなた）" : i === 0 ? "（部屋を作った人）" : ""}`
+    : `<span style="opacity:.6">${NET.mode === "public" ? "さがし中… （来なければ CPU）" : `あき → CPU ${CPUS[i - 1].av} ${CPUS[i - 1].name} が入る`}</span>`}</div>`).join("")}</div>`;
+}
+function hostLobby() {
+  const m = NET.members, cnt = memberCount();
+  // 入った人に、部屋のメンバーとスタートの時間を知らせる
+  const mem = JSON.stringify({ list: m.map(x => x && { name: x.name, av: x.av }), startAt: NET.startAt });
+  if (mem !== NET.memStr) { NET.memStr = mem; NET.room.set("mem", mem).catch(() => {}); }
+  if (NET.mode === "public") {
+    const left = NET.startAt ? Math.max(0, Math.ceil((NET.startAt - Date.now()) / 1000)) : 0;
+    onWaitUI(`<div class="lbl" style="text-align:center">🎲 ランダムマッチ</div>
+      <div class="code" style="font-size:30px">${cnt < 2 ? "さがし中…" : `あと ${left} 秒`}</div>
+      <p class="note">${cnt < 2 ? "いっしょに遊ぶ人をさがしています" : "スタートまで待ってね（4人そろったらすぐ始まる）"}（${cnt}/4人）</p>
+      ${memberList(m)}
+      <p class="note">ルール：標準ルール（3ラウンド）</p>
+      <div class="row"><button id="onGo">${cnt < 2 ? "待たずに CPU と始める" : "▶ すぐ始める"}</button></div>`);
+  } else {
+    onWaitUI(`<div class="lbl" style="text-align:center">部屋の番号</div><div class="code">${NET.code}</div>
+      <p class="note">この番号を友だちに教えてね（最大4人）</p>
+      ${memberList(m)}
+      <p class="note">ルール：${esc(activeRuleNames(R).join("・"))}</p>
+      <div class="row"><button id="onGo" style="background:var(--gold);color:#5a3a00" ${cnt < 2 ? "disabled" : ""}>▶ ゲームを始める</button></div>
+      ${cnt < 2 ? `<p class="note">友だちが入るのを待っています…</p>` : ""}`);
+  }
+  if ($("onGo")) $("onGo").onclick = hostStart;
+}
+function hostStart() {
+  if (NET.started || NET.role !== "host") return;
+  SFX.tap();
+  NET.started = true;
+  clearInterval(NET.hb);
+  if (NET.reg) NET.reg.set(NET.code, null).catch(() => {});   // リストから消す
+  const seats = NET.members.map((m, i) => m ? { name: m.name, av: m.av, kind: i === 0 ? "me" : "net" } : Object.assign({ kind: "cpu" }, CPUS[i - 1]));
+  NET.room.set("start", { at: Date.now(), cids: NET.members.map(m => m ? m.cid : "").join(",") });
+  $("online").classList.remove("show");
+  G = null;
+  newGame(seats);
+}
+
+// ---------- 部屋に入る ----------
+// うまく入れたら ""、だめならその理由を返す
+async function joinRoom(code, retry = 0) {
+  const name = readName(); if (!name) return "name";
+  const room = makeRoom(code);
+  let h, ps, st;
+  try { h = await room.get("host"); ps = await Promise.all([1, 2, 3].map(k => room.get("p" + k))); st = await room.get("start"); }
+  catch (e) { room.close(); return "つながらなかったよ。ネットを確かめてね"; }
+  if (!h) { room.close(); return "その番号の部屋は見つからないよ"; }
+  if (st) { room.close(); return "その部屋はもうゲームが始まっているよ"; }
+  const k = ps.findIndex(v => !v) + 1;
+  if (!k) { room.close(); return "その部屋はもういっぱいだよ"; }
+  Object.assign(NET, { room, code, role: "guest", mode: h.pub ? "public" : "friend", seat: k, started: false, myQ: 0, sentAt: -1, lastEv: 0, snapQ: 0 });
+  ME = k;
+  await room.set("p" + k, { name, av: S.av, cid: CID, at: Date.now() });
+  room.dropOnLeave("p" + k);
+  const hostName = `${AVS.includes(h.av) ? h.av : "😎"} ${esc(safeName(h.name))}`;
+  const lobby = mem => {
+    if (NET.role !== "guest" || NET.started) return;
+    let list = `<div class="members"><div>${hostName}（部屋を作った人）</div></div>`, cd = "";
+    if (mem) {
+      const m = JSON.parse(mem);
+      NET.members = m.list;
+      list = memberList(m.list);
+      if (m.startAt) cd = `<div class="code" style="font-size:30px">あと ${Math.max(0, Math.ceil((m.startAt - Date.now()) / 1000))} 秒</div>`;
+    }
+    onWaitUI(`<div class="lbl" style="text-align:center">${NET.mode === "public" ? "🎲 ランダムマッチ" : `部屋 ${code} に入ったよ！`}</div>${cd}
+      ${list}
+      <p class="note">ルール：${esc(h.rules || "")}</p>
+      <p class="note">${NET.mode === "public" ? "人がそろうと自動で始まるよ" : "部屋を作った人が「ゲームを始める」を押すのを待っています…"}</p>`);
+  };
+  lobby(null);
+  SFX.join();
+  let lastMem = null;
+  room.on("mem", v => { lastMem = v; lobby(v); });
+  NET.hb = setInterval(() => lobby(lastMem), 1000);   // カウントダウンを動かす
+  room.on("p" + k, v => {
+    // 同時に同じ席に入ってしまったら、別の席をさがしなおす
+    if (v && v.cid !== CID && NET.role === "guest" && NET.room === room && !NET.started) {
+      clearInterval(NET.hb); room.close(); NET.room = null; NET.role = "off";
+      if (retry < 2) joinRoom(code, retry + 1).then(err => { if (err) { onErr(err); onWaitUI(null); } });
+      else { onErr("その部屋に入れなかったよ。もう一度ためしてね"); onWaitUI(null); }
+    }
+  });
+  room.on("start", v => {
+    if (!v || NET.role !== "guest" || NET.started || NET.room !== room) return;
+    if (v.cids && !v.cids.split(",").includes(CID)) {   // 間に合わなかった
+      leaveOnline(); onErr("ゲームが始まってしまったよ。もう一度さがしてね"); onWaitUI(null); return;
+    }
+    NET.started = true; clearInterval(NET.hb); $("online").classList.remove("show");
+  });
+  room.on("s", applySnap);
+  room.on("host", v => { if (!v && NET.role === "guest" && NET.room === room) { alert("部屋を作った人がいなくなったので、ゲームはおしまい"); goHome(); } });
+  return "";
+}
+
+// ---------- ランダムマッチ ----------
+async function publicMatch() {
+  onErr("");
+  await loadCount(); lockUI();
+  if (!unlocked()) { onErr(`ランダムマッチは、遊んだ人が ${UNLOCK_AT}人 になったら使えるよ`); return; }
+  if (!readName()) return;
+  try { await netReady(); } catch (e) { onErr(e.message); return; }
+  onWaitUI(`<div class="lbl" style="text-align:center">🎲 ランダムマッチ</div><div class="code" style="font-size:30px">さがし中…</div>`);
+  const reg = makeRoom("pub");
+  let all;
+  try { all = await reg.all(); } catch (e) { reg.close(); onWaitUI(null); onErr("つながらなかったよ。ネットを確かめてね"); return; }
+  reg.close();
+  // 待っている部屋のうち、空きがあって、先にできた部屋から入ってみる
+  const now = Date.now();
+  const list = Object.entries(all).filter(([, v]) => v && v.open && now - v.at < PUB_FRESH && v.n < 4).sort((a, b) => a[1].c - b[1].c);
+  for (const [code] of list) if (!(await joinRoom(code))) return;
+  // どこにも入れなければ、自分で部屋を作って待つ
+  if (!(await createRoom(true))) onWaitUI(null);
+}
+
+// 部屋を出る
+function leaveOnline() {
+  clearInterval(NET.hb);
+  if (NET.reg) { if (NET.role === "host") NET.reg.set(NET.code, null).catch(() => {}); NET.reg.close(); }
+  const r = NET.room;
+  if (r) {
+    if (NET.role === "host") { r.remove().catch(() => {}); r.close(); }   // 部屋を消してから切る
+    else { r.set("p" + NET.seat, null).catch(() => {}); r.close(); }
+  }
+  Object.assign(NET, { role: "off", mode: "", room: null, reg: null, code: "", seat: 0, started: false, startAt: 0, busy: false,
+    members: [null, null, null, null], wait: [null, null, null, null] });
+  ME = 0;
+}
+$("onRandom").onclick = () => { SFX.tap(); publicMatch(); };
+$("onCreate").onclick = () => { SFX.tap(); onErr(""); createRoom(false); };
+$("onJoin").onclick = async () => {
+  SFX.tap(); onErr("");
+  const code = $("onCode").value.trim();
+  if (!/^[0-9]{4}$/.test(code)) { onErr("4けたの番号を入れてね"); return; }
+  if (!readName()) return;
+  try { await netReady(); } catch (e) { onErr(e.message); return; }
+  const err = await joinRoom(code);
+  if (err && err !== "name") onErr(err);
+};
+$("onBack").onclick = () => { SFX.tap(); if (NET.room) leaveOnline(); onWaitUI(null); $("online").classList.remove("show"); };
+
+// =====================================================
+//  ホーム画面と設定
+// =====================================================
+function show(id) { document.querySelectorAll(".screen").forEach(s => s.classList.toggle("show", s.id === id)); }
+function goHome() {
+  token++;
+  if (G && G.resolveHuman) G.resolveHuman("quit");
+  if (G && G.resolveChoice) G.resolveChoice("quit");
+  NET.wait.forEach((w, i) => { if (w) { NET.wait[i] = null; w.res("quit"); } });
+  leaveOnline();
+  G = null; hideResult(); $("nowRules").classList.remove("show"); show("home"); renderHome();
+}
+let ruleAnswer = "";   // ルールを入力したときの返事
+function renderHome() {
+  $("deco").innerHTML = [{ s: "s", r: 14 }, { s: "h", r: 15 }, { j: true, id: "X" }, { s: "d", r: 3 }, { s: "c", r: 8 }]
+    .map((c, i) => cardHTML(c).replace('class="card', `style="--rot:${(i - 2) * 9}deg" class="card`)).join("");
+  $("bSe").textContent = S.se ? "🔊 SE" : "🔇 SE";
+  $("stats").innerHTML = ST.games ? `あそんだ回数 ${ST.games} ・ 優勝 ${ST.wins} 回<br>大富豪になったラウンド ${ST.daifugo} / ${ST.rounds}` : "はじめての人は 📖 ルール を見てね";
+  const seg = (key, labels, vals) => `<div class="seg row">${labels.map((l, i) => `<button data-k="${key}" data-v="${vals[i]}" class="${S[key] === vals[i] ? "on" : ""}">${l}</button>`).join("")}</div>`;
+  const tog = r => `<div class="opt"><div>${r.name}<small>${r.desc}</small></div><button class="tog ${S[r.id] ? "on" : ""}" data-t="${r.id}">${S[r.id] ? "ON" : "OFF"}</button></div>`;
+  const extras = RULES.filter(r => !r.base && !r.special && S[r.id]);
+  $("settings").innerHTML = `
+    <h3>ゲーム</h3>
+    <div class="opt"><div>ラウンド数</div>${seg("rounds", ["3", "5", "10"], [3, 5, 10])}</div>
+    <div class="opt"><div>CPUの強さ</div>${seg("cpu", ["よわい", "ふつう", "つよい"], [0, 1, 2])}</div>
+    <div class="opt"><div>スピード</div>${seg("speed", ["ゆっくり", "ふつう", "はやい"], [0, 1, 2])}</div>
+    <div class="opt"><div>ジョーカー</div>${seg("jokers", ["1枚", "2枚"], [1, 2])}</div>
+    <h3 style="margin-top:12px">ローカルルール</h3>
+    ${RULES.filter(r => r.base).map(tog).join("")}
+    <h3 style="margin-top:12px">✏️ ルールを名前で追加</h3>
+    <div class="addrule"><input id="ruleIn" placeholder="例：5スキップ、7渡し、救急車" maxlength="20"><button id="ruleAdd">追加</button></div>
+    <div id="ruleAns">${ruleAnswer}</div>
+    ${extras.length ? `<div class="chips">${extras.map(r => `<span class="chip">${r.name}<button data-del="${r.id}">✕</button></span>`).join("")}</div>` : ""}
+    <details><summary style="font-size:13px;cursor:pointer">📚 追加できるルールの一覧</summary>
+      <div class="dict">${RULES.filter(r => !r.base && !r.special).map(r => `<b>${r.name}</b>：${r.desc}`).join("<br>")}</div></details>`;
+  $("rulesDict").innerHTML = RULES.filter(r => !r.special).map(r => `<b>${r.name}</b>：${r.desc}`).join("<br>");
+}
+// 入力された名前のルールを追加する
+function addRuleByName(text, force) {
+  const t = text.trim();
+  if (!t) return;
+  const f = force ? { rule: RULE_BY[force], exact: true } : findRule(t);
+  if (!f) {
+    ruleAnswer = `「${esc(t)}」はまだ入っていないルールだよ。📚 一覧にあるルールなら使えるよ（ほしいルールは作った人に伝えてね）`;
+  } else if (!f.exact) {
+    ruleAnswer = `もしかして「<b>${f.rule.name}</b>」？（${f.rule.desc}）<button data-yes="${f.rule.id}">これを追加</button>`;
+  } else {
+    const r = f.rule;
+    if (r.special === "jokers") { S.jokers = 2; ruleAnswer = `「${r.name}」にしたよ！`; }
+    else if (S[r.id]) ruleAnswer = `「${r.name}」はもう ON になっているよ`;
+    else { S[r.id] = true; ruleAnswer = `✅ 「${r.name}」を${r.base ? "ON にした" : "追加した"}よ！ ${r.desc}`; }
+    saveS(); SFX.join();
+  }
+  renderHome();
+  $("settings").classList.add("show");
+}
+$("settings").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.id === "ruleAdd") { addRuleByName($("ruleIn").value); return; }
+  if (b.dataset.yes) { addRuleByName(RULE_BY[b.dataset.yes].name, b.dataset.yes); return; }
+  if (b.dataset.del) { S[b.dataset.del] = false; ruleAnswer = ""; }
+  if (b.dataset.k) S[b.dataset.k] = +b.dataset.v;
+  if (b.dataset.t) S[b.dataset.t] = !S[b.dataset.t];
+  SFX.tap(); saveS(); renderHome();
+});
+$("settings").addEventListener("keydown", e => { if (e.key === "Enter" && e.target.id === "ruleIn") addRuleByName(e.target.value); });
+$("bStart").onclick = () => { ac(); SFX.tap(); G = null; newGame(); };
+$("bOnline").onclick = () => { ac(); SFX.tap(); openOnline(); };
+$("bSet").onclick = () => { SFX.tap(); $("settings").classList.toggle("show"); };
+$("bSe").onclick = () => { S.se = !S.se; saveS(); ac(); SFX.tap(); renderHome(); };
+$("bRules").onclick = () => { SFX.tap(); $("rules").classList.add("show"); };
+$("bRulesClose").onclick = () => { SFX.tap(); $("rules").classList.remove("show"); };
+window.addEventListener("resize", () => { const k = LM; render(); LM = k; });
+window.addEventListener("pagehide", () => { if (NET.room) leaveOnline(); });
+renderHome();
+
+// ---------- テスト用（?auto=数字）：CPUどうしで何ゲームも遊んでエラーがないか見る ----------
+const TEST = { games: 0, rounds: 0, firsts: [0, 0, 0, 0], errors: [] };
+window.__dfg = { TEST, get G() { return G; }, NET, findRule, norm };
+function autoDone(order) {
+  TEST.games++; TEST.rounds += G.round; TEST.firsts[order[0]]++;
+  if (TEST.games < (+AUTO || 1)) setTimeout(() => newGame(), 0);
+}
+window.addEventListener("error", e => TEST.errors.push(String(e.message)));
+window.addEventListener("unhandledrejection", e => TEST.errors.push(String(e.reason && e.reason.stack || e.reason)));
+if (AUTO) {
+  // ?auto=100&rules=all で、追加ルールも全部 ON にしてテストする
+  if (QS.get("rules") === "all") RULES.forEach(r => { if (!r.special) S[r.id] = true; });
+  setTimeout(() => newGame(), 0);
+}
+</script>
+</body>
+</html>
