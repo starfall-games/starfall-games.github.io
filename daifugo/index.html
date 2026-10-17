@@ -838,6 +838,7 @@ const CPUS = [{ name: "ネコ", av: "🐱" }, { name: "パンダ", av: "🐼" },
 function newGame(seats) {
   token++;
   countMe();
+  countPlay();
   R = NET.role === "host" && NET.mode === "public" ? publicRules() : rulesFromS();
   if (!seats) seats = [{ name: "あなた", av: "😎", kind: AUTO ? "cpu" : "me" }, ...CPUS.map(c => Object.assign({ kind: "cpu" }, c))];
   G = {
@@ -1378,7 +1379,7 @@ const UNLOCK_AT = 30;      // ← この人数をこえたらランダムマッ�
 let playerCount = null;    // いままでに遊んだ人数（Firebase の daifugo/stats/players）
 // はじめて遊んだときだけ、人数を1つ増やす（送るのは数字だけ）
 async function countMe() {
-  if (S.counted || AUTO) return;
+  if (S.counted || S.dev || AUTO) return;   // S.dev = テスト用のブラウザ（数えない）
   try {
     await netReady();
     const st = makeRoom("stats");
@@ -1391,6 +1392,17 @@ async function loadCount() {
   try { await netReady(); const st = makeRoom("stats"); playerCount = (await st.get("players")) || 0; st.close(); }
   catch (e) { playerCount = null; }
   return playerCount;
+}
+// ゲームを始めた回数を数える（全部の合計と、CPU戦・友だち・ランダムマッチ別）
+async function countPlay() {
+  if (S.dev || AUTO) return;
+  const mode = NET.role === "off" ? "cpu" : NET.mode === "public" ? "random" : "friend";
+  try {
+    await netReady();
+    const st = makeRoom("stats");
+    await Promise.all([st.incr("plays"), st.incr("plays_" + mode)]);
+    st.close();
+  } catch (e) {}   // オフラインなどで送れなくても、ゲームはそのまま遊べる
 }
 function unlocked() { return playerCount !== null && playerCount >= UNLOCK_AT; }
 // ランダムマッチのボタンを、鍵つき／使える にかえる
