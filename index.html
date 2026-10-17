@@ -246,6 +246,10 @@
     }
     .home-en { font-family: Orbitron, sans-serif; font-weight: 700; font-size: 12px; letter-spacing: 3px; color: #7dd3fc; }
     .home-sub { font-family: 'Dela Gothic One', sans-serif; font-size: 22px; color: white; }
+    /* ほかのゲームへのリンク */
+    .other-game { display: inline-block; margin-top: 12px; padding: 8px 16px; border-radius: 999px; background: rgba(255,255,255,.14);
+      border: 1px solid rgba(255,255,255,.35); color: #fff; text-decoration: none; font-size: 14px; font-weight: bold; }
+    .other-game:active { transform: translateY(1px); }
     .home-stats { color: #cbd5e1; font-size: 15px; line-height: 1.8; }
     .wallet { display: flex; gap: 10px; }
     .wallet span { background: #1f2937; border-radius: 999px; padding: 6px 14px; font-weight: bold; }
@@ -273,6 +277,7 @@
       cursor: pointer;
     }
     .sub-btn:disabled { opacity: 0.4; cursor: default; }
+    a.sub-btn { display: inline-block; text-decoration: none; }   /* リンクもボタンと同じ見た目に */
     .equipped { font-size: 13px; color: #fbcfe8; min-height: 18px; }
     .boost-list { width: 100%; display: flex; flex-direction: column; gap: 8px; }
     .boost {
@@ -503,6 +508,7 @@
         <div class="row">
           <button id="btn-sound" class="sub-btn">🔊 SE</button>
           <button id="btn-music" class="sub-btn">🎵 BGM</button>
+          <a class="sub-btn" href="/daifugo/" title="大富豪（トランプゲーム）も遊べるよ">🃏 大富豪</a>
         </div>
         <div id="home-equipped" class="equipped"></div>
         <div class="note">PRESS SPACE TO START（スペースキーでもスタート）</div>
@@ -580,6 +586,7 @@
        ステージ5・10・15・20の最後にはボスが登場！⚡エネルギーコアを取ってたおそう<br>
        ハートが全部なくなるとゲームオーバー。♥・+20・💎のアイテムを取ろう！<br>
        5点ごとに 🪙1枚、ステージクリアで 💎1個ゲット！　Mキーで BGM のオン・オフ</p>
+    <p><a class="other-game" href="/daifugo/">🃏 トランプゲーム「大富豪」も遊べるよ（CPU・オンライン対戦）→</a></p>
   </div>
 
   <button id="shop-button">🛒 SHOP</button>
