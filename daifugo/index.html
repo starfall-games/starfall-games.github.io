@@ -2,15 +2,38 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
+<script>
+// ===== 引っ越しの受け取り =====
+// 古いアドレス（starfall-games.github.io）から「#move=データ」をつけて来たら、
+// セーブデータをこのブラウザに入れる。こっちにもうあるデータは上書きしない。
+// （ゲームがセーブデータを読む前に動くように、いちばん最初に置いている）
+(function () {
+  var m = location.hash.match(/^#move=([A-Za-z0-9_-]+)$/);
+  if (!m) return;
+  try {
+    var b = m[1].replace(/-/g, "+").replace(/_/g, "/");
+    var bin = atob(b), bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    var data = JSON.parse(new TextDecoder().decode(bytes));
+    for (var k in data) {
+      if (k.indexOf("__") === 0) continue;               // 引っ越し用の印は入れない
+      if (localStorage.getItem(k) === null) localStorage.setItem(k, data[k]);
+    }
+    localStorage.setItem("nixo-moved", String(Date.now()));
+    if (data.__noPhoto) localStorage.setItem("nixo-move-nophoto", "1");
+  } catch (e) {}
+  history.replaceState(null, "", location.pathname + location.search);   // URL から「#move=…」を消す
+})();
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>大富豪｜無料で遊べるトランプゲーム（CPU・オンライン対戦）</title>
 <meta name="description" content="CPU や友だちと遊べる大富豪。8切り・革命・11バックなどのローカルルールを自由に選べる、オンライン対戦もできるトランプゲーム。">
 <!-- 検索エンジンや SNS で見つけてもらうための情報 -->
-<link rel="canonical" href="https://starfall-games.github.io/daifugo/">
+<link rel="canonical" href="https://nixoroot.com/daifugo/">
 <meta property="og:type" content="website">
 <meta property="og:title" content="大富豪｜無料で遊べるトランプゲーム">
 <meta property="og:description" content="CPU や友だちと遊べる大富豪。8切り・革命・11バックなどのローカルルールを自由に選べる、オンライン対戦もできるトランプゲーム。">
-<meta property="og:url" content="https://starfall-games.github.io/daifugo/">
+<meta property="og:url" content="https://nixoroot.com/daifugo/">
 <meta name="theme-color" content="#063d27">
 <style>
   /* ===== 色やサイズをまとめて決めておく ===== */
@@ -138,6 +161,22 @@
   #hand .card.dim { filter: brightness(.55); }
   #hand .card.got::after { content: "NEW"; position: absolute; top: -10px; left: 50%; transform: translateX(-50%); font-size: 9px;
     background: #e53935; color: #fff; padding: 1px 4px; border-radius: 4px; }
+  #hand { touch-action: none; }   /* 指でなぞってカードをえらぶとき、画面が動かないように */
+  /* CPU のセリフ（ふきだし） */
+  .say { position: absolute; left: 50%; bottom: -14px; transform: translateX(-50%); z-index: 4; width: max-content; max-width: 130px;
+    background: #fff; color: #333; font-size: 12px; font-weight: 700; line-height: 1.3; padding: 3px 9px; border-radius: 12px;
+    box-shadow: 0 2px 6px rgba(0,0,0,.45); pointer-events: none; }
+  .say::before { content: ""; position: absolute; left: 50%; top: -6px; margin-left: -6px; border: 6px solid transparent; border-top: 0; border-bottom-color: #fff; }
+  .say.pop { animation: sayIn .25s ease-out; }
+  @keyframes sayIn { from { transform: translateX(-50%) scale(.3); opacity: 0; } }
+  /* お祝いの紙ふぶき */
+  #confetti { position: fixed; inset: 0; pointer-events: none; z-index: 30; overflow: hidden; }
+  #confetti i { position: absolute; top: -20px; width: 9px; height: 14px; border-radius: 2px; animation: fall linear forwards; }
+  @keyframes fall { to { transform: translate(var(--dx), 110vh) rotate(var(--spin)); } }
+  .panel.win { animation: winGlow 1.2s ease-in-out infinite alternate; }
+  @keyframes winGlow { from { box-shadow: 0 0 10px var(--gold); } to { box-shadow: 0 0 34px var(--gold), 0 0 70px rgba(255,213,74,.5); } }
+  .trophy { font-size: 64px; text-align: center; line-height: 1; margin-bottom: 4px; animation: hop .6s ease-in-out infinite alternate; }
+  @keyframes hop { to { transform: translateY(-10px) scale(1.08); } }
   #btns { display: flex; gap: 8px; justify-content: center; }
   #btns button { flex: 1; max-width: 160px; font-size: 17px; padding: 12px 0; }
   #bPlay { background: var(--gold); color: #5a3a00; }
@@ -207,6 +246,7 @@
 
 <!-- ===== 結果 ===== -->
 <div id="result" class="overlay"><div class="panel" id="resultBody"></div></div>
+<div id="confetti"></div>
 
 <!-- ===== いまのルール（ゲーム中） ===== -->
 <div id="nowRules" class="overlay"><div class="panel">
@@ -247,6 +287,7 @@
     <p><b>ジョーカー</b>：1枚で出すと最強。ペアなどに混ぜると、どの数字の代わりにもなる。</p>
     <p><b>カード交換</b>：2ラウンド目から、大貧民は一番強いカード2枚を大富豪に、貧民は1枚を富豪にわたす。大富豪・富豪はいらないカードを返す。</p>
     <p><b>点数</b>：大富豪3点・富豪2点・貧民1点・大貧民0点。合計点が一番の人が優勝！</p>
+    <p><b>カードのえらび方</b>：タップでえらぶ。<b>指でなぞる</b>と何枚もまとめてえらべる。場が2枚以上のときは、出したい数字を1回タップすると<b>同じ枚数を自動でえらぶ</b>よ。場（まんなか）をタップすると、えらんだカードを全部もどす。</p>
     <p><b>ローカルルール</b>：⚙️ ローカルルールでオン・オフできる。<b>ルールの名前を入力して追加</b>もできるよ。くわしくは下の一覧を見てね。</p>
     <div id="rulesDict" class="dict"></div>
   </div>
@@ -701,6 +742,61 @@ function fx(txt, sfx) {
 }
 function msg(t) { if (G) G.msg = t; LM = ""; }
 function nm(i) { return i === ME ? "あなた" : G.players[i].name; }   // 自分の画面では自分を「あなた」と呼ぶ
+function buzz() { try { if (navigator.vibrate) navigator.vibrate(8); } catch (e) {} }   // スマホを少しぶるっとさせる（できる機種だけ）
+
+// ---------- お祝いの紙ふぶき ----------
+function confetti(n = 80) {
+  if (AUTO) return;
+  const box = $("confetti"), cols = ["#ffd54a", "#ff5252", "#40c4ff", "#69f0ae", "#e040fb", "#ffffff"];
+  for (let k = 0; k < n; k++) {
+    const i = document.createElement("i");
+    i.style.left = Math.random() * 100 + "vw";
+    i.style.background = cols[k % cols.length];
+    i.style.setProperty("--dx", Math.round(Math.random() * 160 - 80) + "px");        // 横にゆれる量
+    i.style.setProperty("--spin", Math.round(Math.random() * 1440 - 720) + "deg");   // くるくる回る量
+    i.style.animationDuration = (2.2 + Math.random() * 1.6).toFixed(2) + "s";
+    i.style.animationDelay = (Math.random() * 0.8).toFixed(2) + "s";
+    box.appendChild(i);
+    setTimeout(() => i.remove(), 4800);
+  }
+}
+
+// ---------- CPU のセリフ ----------
+// 場面：play(ふつうに出す) strong(強いカード) pass(パス) cut(8切りなどで流す) rev(革命)
+//       wow(だれかの革命におどろく) first(1位であがり) up(あがり) lose(反則上がり・都落ち)
+const LINES = {
+  "ネコ": { play: ["にゃっ", "これでどうにゃ", "ふふん♪"], strong: ["強いのいくにゃ！", "にゃーん！"], pass: ["パスにゃ…", "ねむいにゃ…"],
+    cut: ["流すにゃ！", "スッキリにゃ"], rev: ["革命にゃー！！"], wow: ["にゃにゃ！？", "うそにゃ〜！"], first: ["いちばんにゃ！"], up: ["あがりにゃ♪"], lose: ["にゃあぁ…"] },
+  "パンダ": { play: ["ゆっくりいくね〜", "これでいい〜？", "ほいっ"], strong: ["とっておき〜", "えいっ！"], pass: ["パスしとこ〜", "笹たべたい…"],
+    cut: ["流しちゃお〜"], rev: ["革命だよ〜！"], wow: ["え〜！？", "びっくり〜"], first: ["やった〜1番〜"], up: ["あがり〜"], lose: ["まけちゃった〜"] },
+  "キツネ": { play: ["計算どおりコン", "フフ…", "これはどうだ"], strong: ["いただきだコン", "勝負だ！"], pass: ["ここはパスだコン", "まだ早い…"],
+    cut: ["ここで流すコン"], rev: ["革命だコン！"], wow: ["なにっ！？", "読めなかった…"], first: ["1位はもらったコン"], up: ["あがりだコン"], lose: ["くやしいコン…"] },
+};
+const SAY_MS = 2600;    // ふきだしを出しておく時間（ミリ秒）
+const SAY_SEEN = {};    // セリフを最初に画面に出した時刻（オンラインの友だちの画面でも同じ長さで消えるように）
+let sayTimer = 0, sayDue = 0;
+// p 番の CPU が kind の場面でしゃべる（chance = しゃべる確率）
+function say(p, kind, chance = 1) {
+  if (AUTO || !G || !G.say) return;
+  const pl = G.players[p], L = pl.kind === "cpu" && LINES[pl.name];
+  if (!L || !L[kind] || Math.random() > chance) return;
+  const arr = L[kind];
+  G.say[p] = { id: (Date.now() % 1e9) * 10 + p, t: arr[Math.floor(Math.random() * arr.length)] };
+}
+// ふきだしの HTML（時間がたったら消す）
+function sayHTML(i) {
+  const sy = G.say && G.say[i];
+  if (!sy) return "";
+  const seen = SAY_SEEN[sy.id] || (SAY_SEEN[sy.id] = Date.now());
+  const age = Date.now() - seen;
+  if (age >= SAY_MS) return "";
+  const due = Date.now() + SAY_MS - age + 30;
+  if (!sayTimer || due < sayDue) {   // 消える時刻に、もう一度画面をかく
+    clearTimeout(sayTimer); sayDue = due;
+    sayTimer = setTimeout(() => { sayTimer = 0; const k = LM; render(); LM = k; }, due - Date.now());
+  }
+  return `<div class="say ${age < 200 ? "pop" : ""}">${esc(sy.t)}</div>`;
+}
 
 // =====================================================
 //  オンライン（Firebase Realtime Database）
@@ -797,7 +893,7 @@ function sendSnap() {
     G.q = (G.q || 0) + 1;
     const s = {
       q: G.q, round: G.round, phase: G.phase, cur: G.cur, dir: G.dir, rev: G.rev, back: G.back, lock: G.lock, numLock: G.numLock,
-      msg: G.msg, note: G.note, choice: G.choice, ev: G.ev, res: G.res, R, got: [...G.got].join(","),
+      msg: G.msg, note: G.note, choice: G.choice, ev: G.ev, res: G.res, R, got: [...G.got].join(","), say: G.say,
       pl: G.players.map(p => ({ name: p.name, av: p.av, n: p.hand.length, score: p.score, title: p.title, done: p.done, kind: p.kind })),
       h: G.players.map(p => p.hand.map(c => c.id).join(",")),
       field: G.field && { by: G.field.by, p: ser(G.field.play) },
@@ -817,7 +913,7 @@ function applySnap(str) {
   const old = G;
   G = {
     round: s.round, phase: s.phase, cur: s.cur, dir: s.dir, rev: s.rev, back: s.back, lock: s.lock, numLock: s.numLock,
-    msg: s.msg, note: s.note, choice: s.choice, ev: [], res: s.res, got: new Set(s.got ? s.got.split(",") : []),
+    msg: s.msg, note: s.note, choice: s.choice, ev: [], res: s.res, got: new Set(s.got ? s.got.split(",") : []), say: s.say || null,
     players: s.pl.map((p, i) => Object.assign({}, p, { hand: i === NET.seat ? (s.h[i] ? s.h[i].split(",").map(idCard) : []) : new Array(p.n).fill(null) })),
     field: s.field && { by: s.field.by, play: deser(s.field.p) },
     pile: s.pile.map(e => ({ by: e.by, play: deser(e.p) })),
@@ -863,7 +959,7 @@ async function playRound(tk) {
   deck.forEach((c, i) => G.players[i % 4].hand.push(c));
   Object.assign(G, { rev: false, back: false, lock: null, numLock: false, field: null, pile: [], passed: [false, false, false, false],
     bubble: ["", "", "", ""], note: ["", "", "", ""], finished: [], bottom: [], sel: new Set(), got: new Set(), dir: 1, choice: null, res: null,
-    played: new Set(), know: [{}, {}, {}, {}] });   // played=もう出たカード、know[p]=p がだれにわたしたか
+    played: new Set(), know: [{}, {}, {}, {}], say: [null, null, null, null] });   // played=もう出たカード、know[p]=p がだれにわたしたか、say=CPUのセリフ
   G.players.forEach(p => sortHand(p.hand));
 
   // 2ラウンド目からはカード交換
@@ -939,6 +1035,14 @@ async function doPlay(p, play, tk) {
   if (R.rev9 && covers(play, 9) && !cut) { G.dir = -G.dir; ev.push(["9リバース！", "skip"]); }
   if (R.skip5 && covers(play, 5) && !cut) { skip = countOf(play, 5); ev.push([`5スキップ！ ×${skip}`, "skip"]); }
   SFX.card();
+  // CPU のセリフ（革命 → 出した人＋だれか1人がおどろく、流す、強いカード、ふつう）
+  if (ev.some(e => e[0].includes("革命"))) {
+    say(p, "rev");
+    const others = [0, 1, 2, 3].filter(i => i !== p && !G.players[i].done);
+    if (others.length) say(others[Math.floor(Math.random() * others.length)], "wow");
+  } else if (cut) say(p, "cut", 0.7);
+  else if (play.hasJoker || play.rank === (G.rev ? 3 : 15) || play.n >= 3) say(p, "strong", 0.5);
+  else say(p, "play", 0.15);
   msg(`${pl.name}が ${play.cards.map(cardName).join(" ")} を出した`);
   render(true);
   for (const [t, s] of ev) { fx(t, s); render(); await delay(1.1); if (tk !== token) return; }
@@ -1008,6 +1112,7 @@ async function doPlay(p, play, tk) {
 function doPass(p) {
   G.passed[p] = true;
   G.bubble[p] = "pass";
+  say(p, "pass", 0.25);
   SFX.pass();
   msg(`${G.players[p].name}はパス`);
   advance();
@@ -1046,11 +1151,13 @@ async function finishPlayer(p, play) {
   if (isFoul(play)) {
     G.bottom.push(p);
     G.bubble[p] = "反則…";
+    say(p, "lose");
     fx("反則上がり…", "bad");
     msg(`${pl.name}は反則上がり！（最後がジョーカー・8・2など）`);
   } else {
     G.finished.push(p);
     G.bubble[p] = `${G.finished.length}位あがり！`;
+    say(p, G.finished.length === 1 ? "first" : "up");
     fx(`${pl.name} あがり！`, "finish");
     msg(`${pl.name}が ${G.finished.length}位であがった！`);
     // 都落ち：前の大富豪が1番になれなかったら、大貧民へ
@@ -1062,6 +1169,7 @@ async function finishPlayer(p, play) {
         if (tk !== token) return;
         dp.hand.forEach(c => G.played.add(c.id));
         dp.done = true; dp.hand = []; G.bottom.push(d); G.bubble[d] = "都落ち…";
+        say(d, "lose");
         fx("都落ち！", "bad");
         msg(`${dp.name}は1番になれなかったので都落ち（大貧民）`);
       }
@@ -1097,13 +1205,14 @@ function endRound(tk) {
 }
 
 // 結果の小窓（ホストもゲストも同じ形で出す）
+let CELEB = "";   // お祝いをした結果（同じ結果で2回お祝いしない）
 function showResult() {
   const r = G.res, P = G.players, boss = NET.role !== "guest";
   let html;
   if (r.final) {
     const top = P[r.order[0]].score, mine = P[ME].score === top;
     const tie = P[r.order[1]].score === top;
-    html = `<h2>🏆 最終結果</h2>
+    html = `${mine ? `<div class="trophy">🏆</div>` : ""}<h2>${mine ? "🎉 優勝！" : "🏆 最終結果"}</h2>
       <table><tr><th>順位</th><th>なまえ</th><th>合計</th></tr>
       ${r.order.map((p, k) => `<tr class="${p === ME ? "mine" : ""}"><td>${k + 1}位</td><td>${P[p].av} ${esc(nm(p))}</td><td>${P[p].score}点</td></tr>`).join("")}</table>
       <p class="note">${mine ? (tie ? "🎉 同点で優勝！" : "🎉 優勝おめでとう！") : "おしい！ もう一度ちょうせんしよう"}</p>
@@ -1112,18 +1221,28 @@ function showResult() {
   } else {
     html = `<h2>ラウンド ${r.round} の結果</h2>
       ${r.geko ? `<p class="note" style="color:var(--gold);font-size:14px">下剋上で順位がひっくり返った！</p>` : ""}
+      ${r.ranks[0] === ME ? `<p class="note" style="color:var(--gold);font-size:16px;font-weight:700;opacity:1">👑 あなたが大富豪！</p>` : ""}
       <table><tr><th>順位</th><th>なまえ</th><th>点</th><th>合計</th></tr>
       ${r.ranks.map((p, k) => `<tr class="${p === ME ? "mine" : ""}"><td><span class="title t${k}">${TITLES[k]}</span></td><td>${P[p].av} ${esc(nm(p))}</td><td>+${POINTS[k]}</td><td>${P[p].score}</td></tr>`).join("")}</table>
       <p class="note">次のラウンドは、カード交換から始まるよ</p>
       <div class="row">${boss ? `<button id="rNext">次のラウンドへ ▶</button>` : `<span class="note">部屋を作った人が進めるのを待っています…</span>`}</div>`;
   }
   $("resultBody").innerHTML = html;
+  const myWin = r.final && P[ME].score === P[r.order[0]].score;
+  $("resultBody").classList.toggle("win", myWin);
+  // お祝い（友だちの画面では同じ結果が何度もとどくので、1回だけ）
+  const key = `${r.round}-${r.final}`;
+  if (CELEB !== key) {
+    CELEB = key;
+    if (myWin) { confetti(160); if (NET.role === "guest") SFX.win(); }
+    else if (!r.final && r.ranks[0] === ME) { confetti(70); SFX.finish(); }
+  }
   if ($("rNext")) $("rNext").onclick = () => { SFX.tap(); hideResult(); G.res = null; playRound(token); };
   if ($("rAgain")) $("rAgain").onclick = () => { SFX.tap(); newGame(G.seats); };
   if ($("rHome")) $("rHome").onclick = () => { SFX.tap(); goHome(); };
   $("result").classList.add("show");
 }
-function hideResult() { $("result").classList.remove("show"); }
+function hideResult() { $("result").classList.remove("show"); if (G && !G.res) CELEB = ""; }
 
 // ---------- だれかにカードや数字をえらんでもらう ----------
 // kind: 'ex'(交換で返す) 'give'(7渡し) 'toss'(10捨て) 'bomb'(Qボンバーの数字)
@@ -1230,7 +1349,7 @@ function render(fresh) {
       <span class="who">${who}</span>
       <div class="av">${p.av}</div><div class="nm">${esc(p.name)}</div>${t}
       <div class="cnt">🂠 ${p.hand.length}枚 ・ ${p.score}点</div>
-      <div class="bubble">${bub}</div></div>`;
+      <div class="bubble">${bub}</div>${sayHTML(i)}</div>`;
   }).join("");
 
   // 場
@@ -1248,7 +1367,7 @@ function render(fresh) {
   const myTurn = isMyTurn(), mc = myChoice();
   let m = LM;
   if (!m && G.phase === "choose" && G.choice) m = G.choice.seat === ME ? G.choice.text : `${nm(G.choice.seat)}がえらんでいるよ…`;
-  if (!m && myTurn) m = G.field ? "あなたの番！ カードをえらんで「出す」" : "あなたが親！ 好きなカードを出せるよ";
+  if (!m && myTurn) m = G.field ? "あなたの番！ カードをえらんで「出す」" : `あなたが親！ 好きなカードを出せるよ${G.round === 1 && me.hand.length >= 10 ? "（指でなぞると何枚もえらべる）" : ""}`;
   if (!m && G.note && G.note[ME]) m = G.note[ME];
   if (!m) m = G.msg || "";
   $("msg").textContent = m;
@@ -1288,22 +1407,68 @@ function render(fresh) {
   sendSnap();
 }
 
-// 手札をタップ
-$("hand").addEventListener("click", e => {
-  const el = e.target.closest(".card"); if (!el || !G) return;
-  const id = el.dataset.id;
-  if (myChoice() && G.choice.kind !== "bomb") {
-    if (G.sel.has(id)) G.sel.delete(id);
-    else if (G.sel.size < G.choice.n) G.sel.add(id);
-  } else if (isMyTurn()) {
-    if (G.sel.has(id)) G.sel.delete(id); else G.sel.add(id);
+// 手札をえらぶ
+//  ・タップでえらぶ／もう一度タップでもどす
+//  ・指でなぞると、なぞったカードをまとめてえらべる（スマホ向け）
+//  ・場が2枚以上のときは、タップした数字を場と同じ枚数だけ自動でえらぶ
+let DRAG = null;   // なぞっているとき { on: えらぶ(true)かもどす(false)か, seen: もうさわったカード }
+function canPick() { return !!G && ((myChoice() && G.choice.kind !== "bomb") || isMyTurn()); }
+function pickCard(id, on) {   // 1枚をえらぶ・もどす（変わったら true）
+  if (G.sel.has(id) === on) return false;
+  if (on && myChoice() && G.sel.size >= G.choice.n) return false;   // 交換などは決まった枚数まで
+  if (on) G.sel.add(id); else G.sel.delete(id);
+  return true;
+}
+function autoGroup(id) {   // 場と同じ枚数の組（ジョーカーなしを先に）
+  if (!isMyTurn() || !G.field || G.sel.size || G.field.play.type !== "set" || G.field.play.n < 2) return null;
+  const c = G.players[ME].hand.find(x => x.id === id); if (!c || c.j) return null;
+  const ok = legal(G.players[ME].hand).filter(q => q.type === "set" && !q.jokerOnly && q.cards.some(x => x.id === id));
+  return ok.find(q => !q.hasJoker) || ok[0] || null;
+}
+// 指の位置にあるカード（えらんで持ち上がったカードがとなりにかぶっても、見えている部分で決める）
+function cardAt(x, y) {
+  const box = $("hand").getBoundingClientRect();
+  if (y < box.top - 40 || y > box.bottom + 40) return null;
+  const cs = [...$("hand").querySelectorAll(".card")];
+  for (let k = cs.length - 1; k >= 0; k--) {
+    const r = cs[k].getBoundingClientRect();
+    if (r.left <= x) return x <= r.right ? cs[k] : null;
+  }
+  return null;
+}
+function afterPick() {   // えらび終わったら、出せるかどうかを教えて画面をかく
+  if (isMyTurn()) {
     G.legal = legal(G.players[ME].hand);
     const sp = selectedPlay();
     LM = sp ? `${sp.type === "stair" ? "階段" : sp.n === 1 ? "1枚" : sp.n + "枚組"}で出せるよ` : G.sel.size ? "その組み合わせは出せないよ" : "";
-  } else return;
-  SFX.tap();
+  }
   const keep = LM; render(); LM = keep;
+}
+$("hand").addEventListener("pointerdown", e => {
+  if (!e.target.closest(".card") || !canPick()) return;
+  const el = cardAt(e.clientX, e.clientY); if (!el) return;
+  e.preventDefault();
+  const id = el.dataset.id;
+  const g = autoGroup(id);
+  if (g) { G.sel = new Set(g.cards.map(c => c.id)); SFX.tap(); buzz(); afterPick(); return; }
+  const on = !G.sel.has(id);
+  if (!pickCard(id, on)) return;
+  SFX.tap(); buzz();
+  el.classList.toggle("sel", on);
+  DRAG = { on, seen: new Set([id]) };
 });
+window.addEventListener("pointermove", e => {
+  if (!DRAG || !canPick()) return;
+  const c = cardAt(e.clientX, e.clientY);
+  if (!c || DRAG.seen.has(c.dataset.id)) return;
+  DRAG.seen.add(c.dataset.id);
+  if (pickCard(c.dataset.id, DRAG.on)) { c.classList.toggle("sel", DRAG.on); SFX.tap(); buzz(); }
+});
+function endDrag() { if (!DRAG) return; DRAG = null; if (G) afterPick(); }
+window.addEventListener("pointerup", endDrag);
+window.addEventListener("pointercancel", endDrag);
+// 場（まんなか）をタップすると、えらんだカードを全部もどす
+$("field").addEventListener("click", () => { if (canPick() && G.sel.size) { G.sel = new Set(); SFX.tap(); afterPick(); } });
 $("pick").addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b || !myChoice()) return;
   SFX.tap();
